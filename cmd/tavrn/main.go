@@ -1,13 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"tavrn/internal/admin"
 	"tavrn/internal/hub"
 	"tavrn/internal/server"
 	"tavrn/internal/session"
@@ -15,6 +15,38 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "purge":
+			runPurge()
+			return
+		case "help", "--help", "-h":
+			fmt.Println("Usage:")
+			fmt.Println("  tavrn          Start the SSH server")
+			fmt.Println("  tavrn purge    Purge all data (run from VPS terminal)")
+			return
+		}
+	}
+
+	runServer()
+}
+
+func runPurge() {
+	st, err := store.New("tavrn.db")
+	if err != nil {
+		log.Fatalf("store: %v", err)
+	}
+	defer st.Close()
+
+	fmt.Println("Purging all data (users, chat, gallery, visitors)...")
+	fmt.Println("Bans will be preserved.")
+	if err := st.PurgeAll(); err != nil {
+		log.Fatalf("purge failed: %v", err)
+	}
+	fmt.Println("Done. All data purged.")
+}
+
+func runServer() {
 	st, err := store.New("tavrn.db")
 	if err != nil {
 		log.Fatalf("store: %v", err)
@@ -24,36 +56,23 @@ func main() {
 	h := hub.New()
 	go h.Run()
 
-	adminFP := os.Getenv("TAVRN_ADMIN_FP")
-	adm := admin.New(st, adminFP)
-
 	if _, err := os.Stat(".ssh"); os.IsNotExist(err) {
 		os.MkdirAll(".ssh", 0700)
 	}
 
 	srv, err := server.New(server.Config{
-		Host:             "0.0.0.0",
-		Port:             2222,
-		HostKeyPath:      ".ssh/id_ed25519",
-		AdminFingerprint: adminFP,
-		Store:            st,
-		Hub:              h,
-		Admin:            adm,
+		Host:        "0.0.0.0",
+		Port:        2222,
+		HostKeyPath: ".ssh/id_ed25519",
+		Store:       st,
+		Hub:         h,
 	})
 	if err != nil {
 		log.Fatalf("server: %v", err)
 	}
 
-	// HTTP kill switch
-	adminToken := os.Getenv("TAVRN_ADMIN_TOKEN")
-	if adminToken != "" {
-		srv.StartHTTPAdmin("127.0.0.1:8080", adminToken)
-	}
-
-	// Weekly purge scheduler
+	// Schedulers
 	go startPurgeScheduler(st, h)
-
-	// Hourly gallery cleanup
 	go startGalleryCleanup(st, h)
 
 	// Start SSH server
@@ -102,7 +121,6 @@ func startPurgeScheduler(st *store.Store, h *hub.Hub) {
 func startGalleryCleanup(st *store.Store, h *hub.Hub) {
 	for {
 		now := time.Now().UTC()
-		// Next hour on the dot
 		next := now.Truncate(time.Hour).Add(time.Hour)
 		timer := time.NewTimer(time.Until(next))
 		<-timer.C

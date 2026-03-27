@@ -6,16 +6,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/ssh"
 	"charm.land/wish/v2"
 	bm "charm.land/wish/v2/bubbletea"
 	lm "charm.land/wish/v2/elapsed"
-	"github.com/charmbracelet/ssh"
 
-	"tavrn/internal/admin"
 	"tavrn/internal/hub"
 	"tavrn/internal/identity"
 	"tavrn/internal/session"
@@ -24,13 +22,11 @@ import (
 )
 
 type Config struct {
-	Host             string
-	Port             int
-	HostKeyPath      string
-	AdminFingerprint string
-	Store            *store.Store
-	Hub              *hub.Hub
-	Admin            *admin.Admin
+	Host        string
+	Port        int
+	HostKeyPath string
+	Store       *store.Store
+	Hub         *hub.Hub
 }
 
 type Server struct {
@@ -72,8 +68,6 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 	hash := sha256.Sum256(pubKey.Marshal())
 	fingerprint := hex.EncodeToString(hash[:])
 
-	log.Printf("connect: fp=%s admin=%v", fingerprint, fingerprint == s.cfg.AdminFingerprint)
-
 	banned, err := s.cfg.Store.IsBanned(fingerprint)
 	if err != nil {
 		log.Printf("ban check error: %v", err)
@@ -98,11 +92,10 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		visitCount = user.VisitCount
 	}
 
-	isAdmin := s.cfg.Admin.IsAdmin(fingerprint)
 	colorIndex := identity.ColorIndex(fingerprint)
 	flair := identity.HasFlair(visitCount)
 
-	sess := session.New(fingerprint, nickname, colorIndex, flair, isAdmin)
+	sess := session.New(fingerprint, nickname, colorIndex, flair)
 	s.cfg.Hub.Register(sess)
 
 	go func() {
@@ -121,7 +114,7 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		Room: "lounge",
 	})
 
-	// Send recent chat history to this session
+	// Send recent chat history
 	history, _ := s.cfg.Store.RecentMessages("lounge", 50)
 	for _, m := range history {
 		msgType := session.MsgChat
@@ -139,7 +132,6 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 	}
 
 	onSend := func(msg session.Msg) {
-		// Persist to SQLite
 		switch msg.Type {
 		case session.MsgChat:
 			s.cfg.Store.SaveMessage(msg.Room, msg.Fingerprint, msg.Nickname, msg.ColorIndex, msg.Text, false)
@@ -149,8 +141,8 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		s.cfg.Hub.Broadcast(msg.Room, msg)
 	}
 
-	model := ui.NewApp(sess, s.cfg.Store, s.cfg.Hub, s.cfg.Admin, onSend)
-	return model, nil // alt screen is declarative in v2 View
+	model := ui.NewApp(sess, s.cfg.Store, s.cfg.Hub, onSend)
+	return model, nil
 }
 
 func (s *Server) Start() error {
@@ -162,34 +154,4 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return s.wish.Shutdown(ctx)
-}
-
-func (s *Server) StartHTTPAdmin(addr, token string) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/admin/purge", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		auth := r.Header.Get("Authorization")
-		if auth != "Bearer "+token {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		s.cfg.Hub.BroadcastAll(session.Msg{
-			Type: session.MsgPurge,
-			Text: "tavern closing",
-		})
-		s.cfg.Store.PurgeAll()
-		s.cfg.Hub.DisconnectAll()
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "purged")
-	})
-
-	go func() {
-		if err := http.ListenAndServe(addr, mux); err != nil {
-			log.Printf("admin HTTP error: %v", err)
-		}
-	}()
-	log.Printf("admin HTTP on %s", addr)
 }

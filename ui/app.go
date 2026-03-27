@@ -10,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/harmonica"
-	"tavrn/internal/admin"
 	"tavrn/internal/room"
 	"tavrn/internal/chat"
 	"tavrn/internal/hub"
@@ -43,7 +42,6 @@ type App struct {
 	height         int
 	store          *store.Store
 	hub            *hub.Hub
-	admin          *admin.Admin
 	onSend         func(session.Msg)
 	lastTypingSent time.Time
 
@@ -57,7 +55,6 @@ type App struct {
 	joinRoomModal     JoinRoomModal
 	postModal         PostModal
 	expandNoteModal   ExpandNoteModal
-	adminConfirmModal AdminConfirmModal
 
 	// Transition animation
 	transSpring harmonica.Spring
@@ -65,7 +62,7 @@ type App struct {
 	transVel    float64
 }
 
-func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, adm *admin.Admin, onSend func(session.Msg)) App {
+func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(session.Msg)) App {
 	return App{
 		state:     stateSplash,
 		splash:    NewSplash(sess.Nickname, sess.Fingerprint, sess.Flair),
@@ -78,7 +75,6 @@ func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, adm *admin.Admin
 		gallery:   NewGalleryView(sess.Fingerprint),
 		store:     st,
 		hub:       h,
-		admin:     adm,
 		onSend:    onSend,
 		modal:     ModalNone,
 	}
@@ -186,26 +182,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			},
 			Fingerprint: a.session.Fingerprint,
 		})
-		return a, nil
-
-	case AdminConfirmMsg:
-		a.modal = ModalNone
-		// Parse action: "purge" or "ban <args>"
-		parts := strings.SplitN(msg.Action, " ", 2)
-		cmd := parts[0]
-		args := ""
-		if len(parts) > 1 {
-			args = parts[1]
-		}
-		result, err := a.admin.HandleCommand(a.session.Fingerprint, cmd, args)
-		if err != nil {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Error: "+err.Error()))
-			return a, nil
-		}
-		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, result))
-		if cmd == "purge" {
-			a.onSend(session.Msg{Type: session.MsgPurge, Room: a.session.Room})
-		}
 		return a, nil
 
 	case GalleryExpandMsg:
@@ -384,10 +360,6 @@ func (a App) updateModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.postModal, cmd = a.postModal.Update(msg)
 		return a, cmd
-	case ModalAdminConfirm:
-		var cmd tea.Cmd
-		a.adminConfirmModal, cmd = a.adminConfirmModal.Update(msg)
-		return a, cmd
 	case ModalExpandNote:
 		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 			if keyMsg.String() == "d" && a.expandNoteModal.IsOwn {
@@ -469,54 +441,7 @@ func (a App) handleInput() (tea.Model, tea.Cmd) {
 }
 
 func (a *App) handleCommand(parsed chat.ParseResult) {
-	switch parsed.Command {
-	case "ban":
-		if !a.session.IsAdmin {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Use F1 for help with keybinds."))
-			return
-		}
-		if parsed.Args == "" {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Usage: /ban <fingerprint> [duration]"))
-			return
-		}
-		a.modal = ModalAdminConfirm
-		a.adminConfirmModal = NewAdminConfirmModal(
-			"ban "+parsed.Args,
-			"Ban user "+parsed.Args+"?")
-
-	case "unban":
-		if !a.session.IsAdmin {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Use F1 for help with keybinds."))
-			return
-		}
-		// Unban is safe, no confirm needed
-		result, err := a.admin.HandleCommand(a.session.Fingerprint, "unban", parsed.Args)
-		if err != nil {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Error: "+err.Error()))
-			return
-		}
-		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, result))
-
-	case "purge":
-		if !a.session.IsAdmin {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Use F1 for help with keybinds."))
-			return
-		}
-		a.modal = ModalAdminConfirm
-		a.adminConfirmModal = NewAdminConfirmModal(
-			"purge",
-			"PURGE ALL DATA? This wipes everything.")
-
-	case "fp":
-		// Show your fingerprint (admin debug)
-		if a.session.IsAdmin {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
-				"Your fingerprint: "+a.session.Fingerprint))
-		}
-
-	default:
-		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Use F1 for help with keybinds."))
-	}
+	a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Use F1 for help with keybinds."))
 }
 
 func (a *App) handleHubMsg(msg session.Msg) {
@@ -724,8 +649,6 @@ func (a App) View() tea.View {
 			modalBox = a.postModal.View(a.width, a.height)
 		case ModalExpandNote:
 			modalBox = a.expandNoteModal.View(a.width, a.height)
-		case ModalAdminConfirm:
-			modalBox = a.adminConfirmModal.View(a.width, a.height)
 		}
 		base = Overlay(base, modalBox, a.width, a.height)
 	}
