@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 )
 
 // Streamer fetches MP3 data from track URLs and sends complete tracks
@@ -17,7 +18,8 @@ type Streamer struct {
 	conns        map[io.WriteCloser]bool
 	cancel       context.CancelFunc
 	currentTrack *Track
-	audioData    []byte // complete MP3 for current track
+	audioData    []byte    // complete MP3 for current track
+	playStart    time.Time // when the current track started playing
 	client       *http.Client
 }
 
@@ -30,20 +32,33 @@ func NewStreamer() *Streamer {
 }
 
 // AddConn registers a new audio channel connection.
-// If a track is available, sends the full track immediately.
+// If a track is playing, sends the remaining audio from the current position.
 func (s *Streamer) AddConn(conn io.WriteCloser) {
 	s.mu.Lock()
 	track := s.currentTrack
 	var audio []byte
-	if len(s.audioData) > 0 {
-		audio = make([]byte, len(s.audioData))
-		copy(audio, s.audioData)
+	var skipBytes int
+	if len(s.audioData) > 0 && track != nil {
+		// Calculate how far into the track we are
+		elapsed := time.Since(s.playStart).Seconds()
+		duration := float64(track.Duration)
+		if duration > 0 {
+			progress := elapsed / duration
+			if progress > 1.0 {
+				progress = 1.0
+			}
+			skipBytes = int(progress * float64(len(s.audioData)))
+		}
+		remaining := s.audioData[skipBytes:]
+		audio = make([]byte, len(remaining))
+		copy(audio, remaining)
 	}
 	s.conns[conn] = true
 	s.mu.Unlock()
 
 	if track != nil && len(audio) > 0 {
-		log.Printf("streamer: sending track to new conn: %s (%d bytes)", track.Title, len(audio))
+		log.Printf("streamer: sending track to new conn: %s (skipped %d bytes, sending %d bytes)",
+			track.Title, skipBytes, len(audio))
 		s.sendTrack(conn, *track, audio)
 	}
 }
@@ -124,9 +139,10 @@ func (s *Streamer) downloadAndBroadcast(ctx context.Context, track Track) {
 
 	log.Printf("streamer: downloaded %d bytes, broadcasting to %d conns", len(audio), s.ConnCount())
 
-	// Store the audio data for late joiners
+	// Store the audio data and mark playback start time
 	s.mu.Lock()
 	s.audioData = audio
+	s.playStart = time.Now()
 	// Snapshot current conns
 	conns := make([]io.WriteCloser, 0, len(s.conns))
 	for conn := range s.conns {
