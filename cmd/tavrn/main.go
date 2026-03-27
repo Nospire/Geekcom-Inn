@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 
 	"tavrn.sh/internal/jukebox"
@@ -282,13 +284,48 @@ func handleResize(fd int, session *ssh.Session) {
 }
 
 // sshAuthMethods returns auth methods for the connection.
-// A tavrn-specific key is always present (auto-generated on first run).
+// System SSH keys and agent are tried first so existing tavern identities
+// (from plain `ssh tavrn.sh`) are preserved. If no system keys exist, a
+// tavrn-specific key is auto-generated at ~/.config/tavrn/id_ed25519.
 func sshAuthMethods() []ssh.AuthMethod {
-	signer, err := ensureTavrnKey()
-	if err != nil {
-		log.Fatalf("identity key: %v", err)
+	var signers []ssh.Signer
+
+	// 1. SSH agent.
+	if sock := os.Getenv("SSH_AUTH_SOCK"); sock != "" {
+		if conn, err := net.Dial("unix", sock); err == nil {
+			agentClient := agent.NewClient(conn)
+			if agentSigners, err := agentClient.Signers(); err == nil {
+				signers = append(signers, agentSigners...)
+			}
+		}
 	}
-	return []ssh.AuthMethod{ssh.PublicKeys(signer)}
+
+	// 2. Standard key files.
+	home, _ := os.UserHomeDir()
+	for _, name := range []string{"id_ed25519", "id_rsa", "id_ecdsa"} {
+		data, err := os.ReadFile(filepath.Join(home, ".ssh", name))
+		if err != nil {
+			continue
+		}
+		key, err := ssh.ParseRawPrivateKey(data)
+		if err != nil {
+			continue // skip passphrase-protected keys silently
+		}
+		if signer, err := ssh.NewSignerFromKey(key); err == nil {
+			signers = append(signers, signer)
+		}
+	}
+
+	// 3. Tavrn identity key — auto-generated if nothing above was found.
+	if len(signers) == 0 {
+		signer, err := ensureTavrnKey()
+		if err != nil {
+			log.Fatalf("identity key: %v", err)
+		}
+		signers = append(signers, signer)
+	}
+
+	return []ssh.AuthMethod{ssh.PublicKeys(signers...)}
 }
 
 // ensureTavrnKey loads or creates a persistent identity key at
