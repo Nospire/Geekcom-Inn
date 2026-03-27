@@ -138,12 +138,15 @@ func connect(addr string, noAudio bool) {
 func startAudioChannel(conn *ssh.Client) {
 	ch, reqs, err := conn.OpenChannel("tavrn-audio", nil)
 	if err != nil {
-		return // server doesn't support audio, silently skip
+		log.Printf("audio: channel open failed: %v", err)
+		return
 	}
 	go ssh.DiscardRequests(reqs)
 	defer ch.Close()
 
+	log.Printf("audio: channel opened, waiting for data...")
 	playAudio(ch)
+	log.Printf("audio: playback ended")
 }
 
 // playAudio demuxes the audio channel stream into track headers and MP3 data,
@@ -168,99 +171,89 @@ func playAudio(r io.Reader) {
 	br := bufio.NewReaderSize(r, 64*1024)
 
 	// Read the first track header — the server always sends one before MP3 data.
-	header, err := jukebox.DecodeTrackHeader(br)
-	if err != nil {
-		return
-	}
-	_ = header // Track info available for display if needed
-
-	// Set up a pipe: the demuxer writes MP3 bytes, the decoder reads them.
-	pr, pw := io.Pipe()
-
-	// Start the demuxer goroutine: reads from the SSH channel, separates
-	// track headers from MP3 data, and writes MP3 bytes into the pipe.
-	go demuxAudio(br, pw)
-
-	// Decode MP3 from the pipe reader. go-mp3 accepts io.Reader and
-	// decodes to signed 16-bit LE, stereo PCM.
-	decoder, err := gomp3.NewDecoder(pr)
-	if err != nil {
-		pr.Close()
-		return
-	}
-
-	sampleRate := decoder.SampleRate()
-
-	op := &oto.NewContextOptions{
-		SampleRate:   sampleRate,
-		ChannelCount: 2,
-		Format:       oto.FormatSignedInt16LE,
-	}
-
-	ctx, readyCh, err := oto.NewContext(op)
-	if err != nil {
-		pr.Close()
-		return
-	}
-	<-readyCh
-
-	player := ctx.NewPlayer(decoder)
-	// Play until the stream ends (pipe closed by demuxer).
-	// oto.Player.Play is non-blocking; we read in a loop to drive playback.
-	player.Play()
-
-	// Block until the decoder's source is exhausted. The player reads from
-	// the decoder which reads from the pipe; when the pipe closes, reads
-	// return EOF and playback ends.
-	for player.IsPlaying() {
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	pr.Close()
-}
-
-// demuxAudio reads the interleaved header+MP3 stream and writes only MP3
-// bytes to pw. It logs track changes.
-//
-// Detection heuristic: peek at the next byte in the buffered reader.
-//   - 0x00 => start of a 4-byte big-endian length prefix (track header)
-//   - 0xFF => MP3 frame sync byte (audio data)
-//   - anything else => read as MP3 data (covers edge cases)
-func demuxAudio(br *bufio.Reader, pw *io.PipeWriter) {
-	defer pw.Close()
-
-	buf := make([]byte, 8192)
+	// oto context is created once per process
+	var otoCtx *oto.Context
 
 	for {
-		// Peek at the next byte to decide what's coming.
-		peek, err := br.Peek(1)
+		header, err := jukebox.DecodeTrackHeader(br)
 		if err != nil {
+			log.Printf("audio: header decode failed: %v", err)
+			return
+		}
+		log.Printf("audio: now playing: %s - %s", header.Artist, header.Title)
+
+		// Create a reader that reads MP3 bytes until the next track header.
+		// Track headers start with 0x00 (length prefix), MP3 frames with 0xFF.
+		tr := &trackReader{br: br}
+
+		decoder, err := gomp3.NewDecoder(tr)
+		if err != nil {
+			log.Printf("audio: mp3 decoder failed: %v", err)
 			return
 		}
 
-		if peek[0] == 0x00 {
-			// Likely a track header: [4-byte len][JSON]
-			_, herr := jukebox.DecodeTrackHeader(br)
-			if herr != nil {
+		if otoCtx == nil {
+			sampleRate := decoder.SampleRate()
+			log.Printf("audio: sample rate: %d", sampleRate)
+
+			op := &oto.NewContextOptions{
+				SampleRate:   sampleRate,
+				ChannelCount: 2,
+				Format:       oto.FormatSignedInt16LE,
+			}
+
+			var readyCh <-chan struct{}
+			otoCtx, readyCh, err = oto.NewContext(op)
+			if err != nil {
+				log.Printf("audio: oto context failed: %v", err)
 				return
 			}
-			// Track changed; continue reading MP3 data for the new track.
-			// The go-mp3 decoder handles the transition because MP3 is
-			// frame-based and will resync.
-			continue
+			<-readyCh
 		}
 
-		// MP3 data: read available bytes and write to the pipe.
-		n, err := br.Read(buf)
-		if n > 0 {
-			if _, werr := pw.Write(buf[:n]); werr != nil {
-				return
-			}
+		log.Printf("audio: playing...")
+		player := otoCtx.NewPlayer(decoder)
+		player.Play()
+
+		for player.IsPlaying() {
+			time.Sleep(100 * time.Millisecond)
 		}
-		if err != nil {
-			return
-		}
+		player.Close()
+		log.Printf("audio: track ended, waiting for next...")
 	}
+}
+
+// trackReader reads from a bufio.Reader until it encounters a track header
+// (detected by peeking: headers start with 0x00, MP3 data with 0xFF).
+// This lets the MP3 decoder read exactly one track's worth of data.
+type trackReader struct {
+	br   *bufio.Reader
+	done bool
+}
+
+func (t *trackReader) Read(p []byte) (int, error) {
+	if t.done {
+		return 0, io.EOF
+	}
+
+	// Peek to see if we hit a new track header
+	peek, err := t.br.Peek(1)
+	if err != nil {
+		t.done = true
+		if err == io.EOF {
+			return 0, io.EOF
+		}
+		return 0, err
+	}
+
+	if peek[0] == 0x00 {
+		// Next bytes are a track header — this track is done
+		t.done = true
+		return 0, io.EOF
+	}
+
+	// Read MP3 data
+	return t.br.Read(p)
 }
 
 func handleResize(fd int, session *ssh.Session) {
