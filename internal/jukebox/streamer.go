@@ -6,32 +6,42 @@ import (
 	"log"
 	"net/http"
 	"sync"
-	"time"
 )
 
 const audioChunkSize = 8192
 
 // Streamer fetches MP3 data from track URLs and broadcasts to connected audio channels.
 type Streamer struct {
-	mu     sync.RWMutex
-	conns  map[io.WriteCloser]bool
-	cancel context.CancelFunc
-	client *http.Client
+	mu           sync.RWMutex
+	conns        map[io.WriteCloser]bool
+	cancel       context.CancelFunc
+	currentTrack *Track // track currently being streamed
+	client       *http.Client
 }
 
 // NewStreamer creates a new audio streamer.
 func NewStreamer() *Streamer {
 	return &Streamer{
 		conns:  make(map[io.WriteCloser]bool),
-		client: &http.Client{Timeout: 30 * time.Second},
+		client: &http.Client{}, // no timeout — streams can be long
 	}
 }
 
 // AddConn registers a new audio channel connection.
+// If a track is currently streaming, sends the header immediately
+// so the client can start receiving MP3 data.
 func (s *Streamer) AddConn(conn io.WriteCloser) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.conns[conn] = true
+	track := s.currentTrack
+	s.mu.Unlock()
+
+	// Send current track header so the client knows what's playing
+	if track != nil {
+		if err := EncodeTrackHeader(conn, *track); err != nil {
+			log.Printf("streamer: header write to new conn: %v", err)
+		}
+	}
 }
 
 // RemoveConn removes an audio channel connection.
@@ -56,6 +66,7 @@ func (s *Streamer) StreamTrack(track Track) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
+	s.currentTrack = &track
 	s.mu.Unlock()
 
 	go s.stream(ctx, track)
@@ -69,6 +80,7 @@ func (s *Streamer) Stop() {
 		s.cancel()
 		s.cancel = nil
 	}
+	s.currentTrack = nil
 }
 
 func (s *Streamer) stream(ctx context.Context, track Track) {
@@ -76,8 +88,10 @@ func (s *Streamer) stream(ctx context.Context, track Track) {
 		return
 	}
 
+	// Send header to all currently connected clients
 	s.broadcastHeader(track)
 
+	// Fetch MP3 data
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, track.URL, nil)
 	if err != nil {
 		log.Printf("streamer: request error: %v", err)
@@ -87,13 +101,14 @@ func (s *Streamer) stream(ctx context.Context, track Track) {
 	resp, err := s.client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
-			return
+			return // cancelled, not an error
 		}
 		log.Printf("streamer: fetch error: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
+	// Read and broadcast chunks
 	buf := make([]byte, audioChunkSize)
 	for {
 		select {

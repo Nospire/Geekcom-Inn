@@ -180,14 +180,17 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 func (s *Server) audioChannelHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 	ch, reqs, err := newChan.Accept()
 	if err != nil {
+		log.Printf("audio channel: accept error: %v", err)
 		return
 	}
 	go gossh.DiscardRequests(reqs)
 
+	log.Printf("audio channel: client connected (%d total)", s.cfg.Streamer.ConnCount()+1)
 	s.cfg.Streamer.AddConn(ch)
 
 	// Block until connection closes
 	<-ctx.Done()
 	s.cfg.Streamer.RemoveConn(ch)
 	ch.Close()
+	log.Printf("audio channel: client disconnected (%d remaining)", s.cfg.Streamer.ConnCount())
 }
