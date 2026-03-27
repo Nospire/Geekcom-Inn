@@ -62,21 +62,7 @@ func (h HelpModal) View(width, height int) string {
 	b.WriteString(header)
 	b.WriteString("\n\n")
 
-	b.WriteString(cat.Render("CHAT"))
-	b.WriteString("\n")
-	cmds := []struct{ c, d string }{
-		{"/join ROOM", "switch rooms"},
-		{"/nick NAME", "change your handle"},
-		{"/who", "see who's around"},
-		{"/post MSG", "sticky note (#gallery)"},
-		{"/help", "show this card"},
-	}
-	for _, c := range cmds {
-		b.WriteString(fmt.Sprintf("  %s  %s\n", cmd.Width(18).Render(c.c), desc.Render(c.d)))
-	}
-
-	b.WriteString("\n")
-	b.WriteString(cat.Render("KEYS"))
+	b.WriteString(cat.Render("CHAT KEYS"))
 	b.WriteString("\n")
 	keys := []struct{ k, d string }{
 		{"F1 or ?", "this help"},

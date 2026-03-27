@@ -421,89 +421,11 @@ func (a App) handleInput() (tea.Model, tea.Cmd) {
 
 func (a *App) handleCommand(parsed chat.ParseResult) {
 	switch parsed.Command {
-	case "help":
-		a.modal = ModalHelp
-		a.helpModal = NewHelpModal()
-
-	case "nick":
-		a.modal = ModalNick
-		a.nickModal = NewNickModal(a.session.Nickname)
-
-	case "who":
-		sessions := a.hub.Sessions(a.session.Room)
-		var names []string
-		for _, s := range sessions {
-			name := s.Nickname
-			if s.Flair {
-				name = "~" + name
-			}
-			names = append(names, name)
-		}
-		text := fmt.Sprintf("In #%s: %s", a.session.Room, strings.Join(names, ", "))
-		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, text))
-
-	case "join":
-		// If arg provided, join directly
-		target := strings.TrimPrefix(strings.TrimSpace(parsed.Args), "#")
-		if target != "" {
-			if !room.IsValid(target) {
-				a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
-					fmt.Sprintf("Unknown room. Available: %s", strings.Join(room.All, ", "))))
-				return
-			}
-			if target != a.session.Room {
-				a.switchRoom(target)
-			}
-			return
-		}
-		// No arg: open room picker modal
-		var counts []int
-		for _, rName := range room.All {
-			counts = append(counts, len(a.hub.Sessions(rName)))
-		}
-		a.modal = ModalJoinRoom
-		a.joinRoomModal = NewJoinRoomModal(room.All, counts, a.session.Room)
-
-	case "post":
-		if a.session.Room != "gallery" {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
-				"You can only /post in #gallery. Use /join gallery first."))
-			return
-		}
-		text := strings.TrimSpace(parsed.Args)
-		if text == "" {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Usage: /post <message>"))
-			return
-		}
-		if len(text) > 60 {
-			text = text[:60]
-		}
-		x, y := a.gallery.RandomPosition()
-		noteID, err := a.store.CreateNote(x, y, text, a.session.Fingerprint, a.session.Nickname, a.session.ColorIndex)
-		if err != nil {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Error creating note."))
-			return
-		}
-		note := GalleryNote{
-			ID: noteID, X: x, Y: y,
-			Text: text, Nickname: a.session.Nickname,
-			Fingerprint: a.session.Fingerprint, ColorIndex: a.session.ColorIndex,
-		}
-		a.gallery.AddNote(note)
-		a.onSend(session.Msg{
-			Type: session.MsgNoteCreate,
-			Room: "gallery",
-			Note: &session.NoteData{
-				ID: noteID, X: x, Y: y,
-				Text: text, Nick: a.session.Nickname, Color: a.session.ColorIndex,
-			},
-			Fingerprint: a.session.Fingerprint,
-		})
-
+	// Hidden admin commands only
 	case "ban", "unban", "purge":
 		if !a.session.IsAdmin {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
-				"Unknown command: /"+parsed.Command))
+				"Use F1 for help with keybinds."))
 			return
 		}
 		result, err := a.admin.HandleCommand(
@@ -517,10 +439,9 @@ func (a *App) handleCommand(parsed chat.ParseResult) {
 		if parsed.Command == "purge" {
 			a.onSend(session.Msg{Type: session.MsgPurge, Room: a.session.Room})
 		}
-
 	default:
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
-			"Unknown command: /"+parsed.Command))
+			"Use F1 for help with keybinds."))
 	}
 }
 
