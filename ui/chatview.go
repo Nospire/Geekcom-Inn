@@ -186,11 +186,24 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
+	// Route scroll keys to viewport, everything else to input
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		switch keyMsg.String() {
+		case "pgup", "pgdown", "shift+up", "shift+down", "home", "end":
+			c.viewport, cmd = c.viewport.Update(msg)
+			cmds = append(cmds, cmd)
+			return c, tea.Batch(cmds...)
+		}
+	}
+
 	c.input, cmd = c.input.Update(msg)
 	cmds = append(cmds, cmd)
 
-	c.viewport, cmd = c.viewport.Update(msg)
-	cmds = append(cmds, cmd)
+	// Still pass non-key messages (like window resize) to viewport
+	if _, ok := msg.(tea.KeyPressMsg); !ok {
+		c.viewport, cmd = c.viewport.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
 	return c, tea.Batch(cmds...)
 }
