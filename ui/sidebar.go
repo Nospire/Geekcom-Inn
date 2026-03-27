@@ -57,11 +57,10 @@ func (r RoomsPanel) View() string {
 		}
 	}
 
-	return SidebarStyle.
+	return LeftSidebarStyle.
 		Width(r.Width).
 		Height(r.Height).
 		MaxHeight(r.Height).
-		Padding(1, 1).
 		Render(b.String())
 }
 
@@ -104,10 +103,9 @@ func (o OnlinePanel) View() string {
 		}
 	}
 
-	return SidebarStyle.
+	return RightSidebarStyle.
 		Width(o.Width).
 		Height(o.Height).
 		MaxHeight(o.Height).
-		Padding(1, 1).
 		Render(b.String())
 }

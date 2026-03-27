@@ -57,13 +57,23 @@ var (
 			BorderForeground(ColorBorder).
 			Foreground(ColorSand)
 
-	SidebarStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), false, false, false, true).
-			BorderForeground(ColorBorder).
-			Foreground(ColorSand).
-			PaddingTop(1).
-			PaddingLeft(1).
-			PaddingRight(0)
+	// Left sidebar: border on right side
+	LeftSidebarStyle = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder(), false, true, false, false).
+				BorderForeground(ColorBorder).
+				Foreground(ColorSand).
+				PaddingTop(1).
+				PaddingLeft(1).
+				PaddingRight(1)
+
+	// Right sidebar: border on left side
+	RightSidebarStyle = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder(), false, false, false, true).
+				BorderForeground(ColorBorder).
+				Foreground(ColorSand).
+				PaddingTop(1).
+				PaddingLeft(1).
+				PaddingRight(1)
 
 	SystemMsgStyle = lipgloss.NewStyle().
 			Foreground(ColorDim).
