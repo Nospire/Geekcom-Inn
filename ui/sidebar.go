@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 )
@@ -11,58 +12,101 @@ type RoomInfo struct {
 	Count int
 }
 
-type Sidebar struct {
-	Rooms       []RoomInfo
-	OnlineUsers []string
-	Width       int
-	Height      int
+// ─────────────────────────────────────
+// Left sidebar: Rooms / Channels
+// ─────────────────────────────────────
+
+type RoomsPanel struct {
+	Rooms  []RoomInfo
+	Width  int
+	Height int
 }
 
-func NewSidebar() Sidebar {
-	return Sidebar{
+func NewRoomsPanel() RoomsPanel {
+	return RoomsPanel{
 		Rooms: []RoomInfo{{Name: "lounge", Count: 0}},
 	}
 }
 
-func (s Sidebar) View() string {
-	sectionHeader := lipgloss.NewStyle().
-		Foreground(ColorAccent).
-		Bold(true).
-		MarginBottom(1)
+func (r RoomsPanel) View() string {
+	header := lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
 
-	dimText := lipgloss.NewStyle().Foreground(ColorDim)
+	var b strings.Builder
+	b.WriteString(header.Render("ROOMS"))
+	b.WriteString("\n")
+	sep := lipgloss.NewStyle().Foreground(ColorDimmer).Render(
+		strings.Repeat("─", r.Width-4))
+	b.WriteString(sep)
+	b.WriteString("\n")
 
-	// NOW ONLINE section
-	content := sectionHeader.Render("NOW ONLINE") + "\n"
-	if len(s.OnlineUsers) == 0 {
-		content += dimText.Render("  (empty)") + "\n"
+	for _, room := range r.Rooms {
+		active := lipgloss.NewStyle().
+			Foreground(ColorAmber).
+			Bold(true).
+			Render(fmt.Sprintf("#%s", room.Name))
+		count := lipgloss.NewStyle().
+			Foreground(ColorDim).
+			Render(fmt.Sprintf(" %d", room.Count))
+		b.WriteString(active + count + "\n")
+	}
+
+	// Future rooms placeholder
+	b.WriteString("\n")
+	b.WriteString(lipgloss.NewStyle().Foreground(ColorDimmer).Render("#gallery"))
+	b.WriteString("\n")
+	b.WriteString(lipgloss.NewStyle().Foreground(ColorDimmer).Render("#chaotic"))
+
+	return SidebarStyle.
+		Width(r.Width).
+		Height(r.Height).
+		MaxHeight(r.Height).
+		Padding(1, 1).
+		Render(b.String())
+}
+
+// ─────────────────────────────────────
+// Right sidebar: Online users
+// ─────────────────────────────────────
+
+type OnlinePanel struct {
+	Users  []string
+	Width  int
+	Height int
+	Frame  int // for animated online dots
+}
+
+func NewOnlinePanel() OnlinePanel {
+	return OnlinePanel{}
+}
+
+// Animated dot cycles for online presence
+var onlineDotFrames = []string{"●", "●", "◉", "●"}
+
+func (o OnlinePanel) View() string {
+	header := lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
+
+	var b strings.Builder
+	b.WriteString(header.Render("ONLINE"))
+	b.WriteString("\n")
+	sep := lipgloss.NewStyle().Foreground(ColorDimmer).Render(
+		strings.Repeat("─", o.Width-4))
+	b.WriteString(sep)
+	b.WriteString("\n")
+
+	if len(o.Users) == 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render("(empty)"))
 	} else {
-		for _, u := range s.OnlineUsers {
-			bullet := lipgloss.NewStyle().Foreground(lipgloss.Color("108")).Render("*")
-			content += fmt.Sprintf("  %s %s\n", bullet, u)
+		dot := onlineDotFrames[o.Frame%len(onlineDotFrames)]
+		dotStyle := lipgloss.NewStyle().Foreground(ColorGreen).Render(dot)
+		for _, u := range o.Users {
+			b.WriteString(fmt.Sprintf("%s %s\n", dotStyle, u))
 		}
 	}
 
-	content += "\n"
-
-	// ROOMS section
-	content += sectionHeader.Render("ROOMS") + "\n"
-	for _, r := range s.Rooms {
-		count := lipgloss.NewStyle().Foreground(ColorDim).Render(fmt.Sprintf("%d", r.Count))
-		name := lipgloss.NewStyle().Foreground(ColorSand).Render(fmt.Sprintf("#%s", r.Name))
-		content += fmt.Sprintf("  %s  %s\n", name, count)
-	}
-
-	content += "\n"
-
-	// UP NEXT section
-	content += sectionHeader.Render("UP NEXT") + "\n"
-	content += dimText.Render("  (coming soon)") + "\n"
-
 	return SidebarStyle.
-		Width(s.Width).
-		Height(s.Height).
-		MaxHeight(s.Height).
+		Width(o.Width).
+		Height(o.Height).
+		MaxHeight(o.Height).
 		Padding(1, 1).
-		Render(content)
+		Render(b.String())
 }

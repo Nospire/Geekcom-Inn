@@ -15,10 +15,7 @@ import (
 	"tavrn/internal/store"
 )
 
-// HubMsg wraps a session.Msg for the Bubble Tea message loop.
 type HubMsg session.Msg
-
-// tickMsg fires every 500ms for animations and timestamp refresh.
 type tickMsg time.Time
 
 type appState int
@@ -35,7 +32,8 @@ type App struct {
 	chat           ChatView
 	topBar         TopBar
 	bottomBar      BottomBar
-	sidebar        Sidebar
+	rooms          RoomsPanel
+	online         OnlinePanel
 	width          int
 	height         int
 	store          *store.Store
@@ -43,6 +41,11 @@ type App struct {
 	admin          *admin.Admin
 	onSend         func(session.Msg)
 	lastTypingSent time.Time
+
+	// Modal
+	modal     ModalType
+	helpModal HelpModal
+	nickModal NickModal
 }
 
 func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, adm *admin.Admin, onSend func(session.Msg)) App {
@@ -53,11 +56,13 @@ func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, adm *admin.Admin
 		chat:      NewChatView(),
 		topBar:    NewTopBar(),
 		bottomBar: NewBottomBar(),
-		sidebar:   NewSidebar(),
+		rooms:     NewRoomsPanel(),
+		online:    NewOnlinePanel(),
 		store:     st,
 		hub:       h,
 		admin:     adm,
 		onSend:    onSend,
+		modal:     ModalNone,
 	}
 }
 
@@ -78,10 +83,7 @@ func doTick() tea.Cmd {
 }
 
 func (a App) Init() tea.Cmd {
-	return tea.Batch(
-		WaitForHubMsg(a.session.Send),
-		doTick(),
-	)
+	return tea.Batch(WaitForHubMsg(a.session.Send), doTick())
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -99,6 +101,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		a.topBar.Frame++
+		a.online.Frame++
 		a.chat.Tick()
 		return a, doTick()
 
@@ -112,8 +115,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case HubMsg:
 		a.handleHubMsg(session.Msg(msg))
 		return a, WaitForHubMsg(a.session.Send)
+
+	case CloseModalMsg:
+		a.modal = ModalNone
+		return a, nil
+
+	case NickChangeMsg:
+		return a.applyNickChange(msg.Nick)
 	}
 
+	// Splash state
 	if a.state == stateSplash {
 		var cmd tea.Cmd
 		splash, cmd := a.splash.Update(msg)
@@ -121,7 +132,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 
-	// Tavern state input handling
+	// Modal captures all input when open
+	if a.modal != ModalNone {
+		return a.updateModal(msg)
+	}
+
+	// Tavern state
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
@@ -129,8 +145,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, tea.Quit
 		case "enter":
 			return a.handleInput()
+		case "esc":
+			return a, nil
 		default:
-			// Broadcast typing notification (throttled to once per 2s)
+			// Typing notification (throttled)
 			if time.Since(a.lastTypingSent) > 2*time.Second && a.chat.HasInput() {
 				a.lastTypingSent = time.Now()
 				a.onSend(session.Msg{
@@ -145,6 +163,51 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	a.chat, cmd = a.chat.Update(msg)
 	return a, cmd
+}
+
+func (a App) updateModal(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		if msg.String() == "esc" {
+			a.modal = ModalNone
+			return a, nil
+		}
+	}
+
+	switch a.modal {
+	case ModalNick:
+		var cmd tea.Cmd
+		a.nickModal, cmd = a.nickModal.Update(msg)
+		return a, cmd
+	case ModalHelp:
+		// Help modal only responds to ESC (handled above)
+		return a, nil
+	}
+	return a, nil
+}
+
+func (a App) applyNickChange(nick string) (tea.Model, tea.Cmd) {
+	cleaned, err := sanitize.CleanNick(nick)
+	if err != nil {
+		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, err.Error()))
+		a.modal = ModalNone
+		return a, nil
+	}
+	if err := a.store.SetNickname(a.session.Fingerprint, cleaned); err != nil {
+		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
+			"That name is already claimed."))
+		a.modal = ModalNone
+		return a, nil
+	}
+	oldNick := a.session.Nickname
+	a.session.Nickname = cleaned
+	a.modal = ModalNone
+	a.onSend(session.Msg{
+		Type: session.MsgSystem,
+		Text: fmt.Sprintf("%s is now known as %s", oldNick, cleaned),
+		Room: a.session.Room,
+	})
+	return a, nil
 }
 
 func (a App) handleInput() (tea.Model, tea.Cmd) {
@@ -177,21 +240,18 @@ func (a App) handleInput() (tea.Model, tea.Cmd) {
 				"Slow down! You're sending too fast."))
 		}
 	}
-
 	return a, nil
 }
 
 func (a *App) handleCommand(parsed chat.ParseResult) {
 	switch parsed.Command {
 	case "help":
-		help := "Commands:\n" +
-			"  /nick <name>  — change your nickname\n" +
-			"  /who          — see who's around\n" +
-			"  /help         — show this help\n\n" +
-			"All data — nicknames, canvas, chat, identities, votes —\n" +
-			"is purged every Sunday at 23:59 UTC.\n" +
-			"Nothing is permanent. Draw while you can."
-		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, help))
+		a.modal = ModalHelp
+		a.helpModal = NewHelpModal()
+
+	case "nick":
+		a.modal = ModalNick
+		a.nickModal = NewNickModal(a.session.Nickname)
 
 	case "who":
 		sessions := a.hub.Sessions(a.session.Room)
@@ -205,29 +265,6 @@ func (a *App) handleCommand(parsed chat.ParseResult) {
 		}
 		text := fmt.Sprintf("In #%s: %s", a.session.Room, strings.Join(names, ", "))
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, text))
-
-	case "nick":
-		if parsed.Args == "" {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Usage: /nick <name>"))
-			return
-		}
-		cleaned, err := sanitize.CleanNick(parsed.Args)
-		if err != nil {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, err.Error()))
-			return
-		}
-		if err := a.store.SetNickname(a.session.Fingerprint, cleaned); err != nil {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
-				"That name is already claimed."))
-			return
-		}
-		oldNick := a.session.Nickname
-		a.session.Nickname = cleaned
-		a.onSend(session.Msg{
-			Type: session.MsgSystem,
-			Text: fmt.Sprintf("%s is now known as %s", oldNick, cleaned),
-			Room: a.session.Room,
-		})
 
 	case "ban", "unban", "purge":
 		if !a.session.IsAdmin {
@@ -269,7 +306,6 @@ func (a *App) handleHubMsg(msg session.Msg) {
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
 			"The tavern has been swept clean."))
 	case session.MsgTyping:
-		// Don't show your own typing
 		if msg.Nickname != a.session.Nickname {
 			a.chat.SetTyping(msg.Nickname)
 		}
@@ -277,13 +313,18 @@ func (a *App) handleHubMsg(msg session.Msg) {
 }
 
 func (a *App) doLayout() {
-	sidebarWidth := 26
-	if a.width < 80 {
-		sidebarWidth = 0
+	roomsWidth := 16
+	onlineWidth := 18
+	if a.width < 90 {
+		roomsWidth = 0
+		onlineWidth = 0
+	} else if a.width < 110 {
+		roomsWidth = 14
+		onlineWidth = 16
 	}
-	mainWidth := a.width - sidebarWidth
+	chatWidth := a.width - roomsWidth - onlineWidth
 
-	topBarHeight := 3 // brand + stats + border
+	topBarHeight := 3
 	bottomBarHeight := 2
 	mainHeight := a.height - topBarHeight - bottomBarHeight
 	if mainHeight < 6 {
@@ -292,14 +333,30 @@ func (a *App) doLayout() {
 
 	a.topBar.Width = a.width
 	a.bottomBar.Width = a.width
-	a.sidebar.Width = sidebarWidth
-	a.sidebar.Height = mainHeight
-	a.chat.SetSize(mainWidth, mainHeight)
+	a.rooms.Width = roomsWidth
+	a.rooms.Height = mainHeight
+	a.online.Width = onlineWidth
+	a.online.Height = mainHeight
+	a.chat.SetSize(chatWidth, mainHeight)
 }
 
 func (a App) View() tea.View {
 	if a.state == stateSplash {
 		return a.splash.View()
+	}
+
+	// Modal overlay
+	if a.modal != ModalNone {
+		var content string
+		switch a.modal {
+		case ModalHelp:
+			content = a.helpModal.View(a.width, a.height)
+		case ModalNick:
+			content = a.nickModal.View(a.width, a.height)
+		}
+		v := tea.NewView(content)
+		v.AltScreen = true
+		return v
 	}
 
 	if a.width == 0 {
@@ -308,12 +365,11 @@ func (a App) View() tea.View {
 		return v
 	}
 
-	// Update live counts
+	// Update live data
 	a.topBar.OnlineCount = a.hub.OnlineCount()
 	wc, _ := a.store.WeeklyVisitorCount()
 	a.topBar.WeeklyCount = wc
 
-	// Update sidebar
 	sessions := a.hub.Sessions(a.session.Room)
 	var onlineNames []string
 	for _, s := range sessions {
@@ -323,26 +379,23 @@ func (a App) View() tea.View {
 		}
 		onlineNames = append(onlineNames, name)
 	}
-	a.sidebar.OnlineUsers = onlineNames
-	a.sidebar.Rooms = []RoomInfo{{Name: "lounge", Count: a.hub.OnlineCount()}}
+	a.online.Users = onlineNames
+	a.rooms.Rooms = []RoomInfo{{Name: "lounge", Count: a.hub.OnlineCount()}}
 
-	sidebarWidth := 26
-	if a.width < 80 {
-		sidebarWidth = 0
-	}
-
+	// Render
 	topBar := a.topBar.View()
 	chatView := a.chat.View()
+	bottomBar := a.bottomBar.View()
 
+	// 3-column layout: rooms | chat | online
 	var mainArea string
-	if sidebarWidth > 0 {
-		sidebar := a.sidebar.View()
-		mainArea = lipgloss.JoinHorizontal(lipgloss.Top, chatView, sidebar)
+	if a.rooms.Width > 0 {
+		roomsView := a.rooms.View()
+		onlineView := a.online.View()
+		mainArea = lipgloss.JoinHorizontal(lipgloss.Top, roomsView, chatView, onlineView)
 	} else {
 		mainArea = chatView
 	}
-
-	bottomBar := a.bottomBar.View()
 
 	content := lipgloss.JoinVertical(lipgloss.Left, topBar, mainArea, bottomBar)
 	v := tea.NewView(content)

@@ -7,16 +7,13 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Animated glyphs that cycle for the ambient pulse
-var pulseFrames = []string{"·", ":", "·", " "}
-
 type TopBar struct {
 	Room        string
 	OnlineCount int
 	WeeklyCount int
 	NowPlaying  string
 	Width       int
-	Frame       int // animation frame counter
+	Frame       int
 }
 
 func NewTopBar() TopBar {
@@ -28,16 +25,24 @@ func (t TopBar) View() string {
 		return ""
 	}
 
-	// Line 1: Brand banner
-	diag := lipgloss.NewStyle().Foreground(ColorBorder).Bold(true).Render("╱╱╱")
-	title := GradientText(" TAVRN.SH ", ColorHighlight, ColorAmber, true)
-	diagR := lipgloss.NewStyle().Foreground(ColorBorder).Bold(true).Render("╱╱╱")
+	// Line 1: ╱╱╱ decorative fill with title centered
+	titleText := " TAVRN.SH "
+	titleRendered := GradientText(titleText, ColorHighlight, ColorAmber, true)
+	titleWidth := len(titleText)
 
-	// Animated pulse dot
-	pulse := pulseFrames[t.Frame%len(pulseFrames)]
-	pulseStyled := lipgloss.NewStyle().Foreground(ColorHighlight).Render(pulse)
+	fillTotal := t.Width - titleWidth - 4
+	if fillTotal < 4 {
+		fillTotal = 4
+	}
+	leftFillN := fillTotal / 2
+	rightFillN := fillTotal - leftFillN
 
-	brandLine := fmt.Sprintf("  %s%s%s  %s", diag, title, diagR, pulseStyled)
+	leftFill := lipgloss.NewStyle().Foreground(ColorBorder).Render(
+		"  " + strings.Repeat("╱", leftFillN))
+	rightFill := lipgloss.NewStyle().Foreground(ColorBorder).Render(
+		strings.Repeat("╱", rightFillN) + "  ")
+
+	brandLine := leftFill + titleRendered + rightFill
 
 	// Line 2: Stats
 	onlineDot := lipgloss.NewStyle().Foreground(ColorGreen).Render("●")
@@ -49,30 +54,20 @@ func (t TopBar) View() string {
 		fmt.Sprintf("#%s", t.Room))
 	dot := lipgloss.NewStyle().Foreground(ColorDimmer).Render(" · ")
 
-	statsLine := fmt.Sprintf("  %s %s%s%s%s%s", onlineDot, onlineNum, dot, weekly, dot, room)
+	statsLeft := fmt.Sprintf("  %s %s%s%s", onlineDot, onlineNum, dot, weekly)
 
-	// Now playing on stats line if present
-	if t.NowPlaying != "" {
-		note := lipgloss.NewStyle().Foreground(ColorAmber).Render("♪")
-		np := lipgloss.NewStyle().Foreground(ColorDim).Render(t.NowPlaying)
-		statsLine += dot + note + " " + np
+	// Right-align room name
+	statsRight := room + "  "
+	gap := t.Width - lipgloss.Width(statsLeft) - lipgloss.Width(statsRight)
+	if gap < 0 {
+		gap = 0
 	}
 
-	// Pad brand line
-	brandPad := t.Width - lipgloss.Width(brandLine)
-	if brandPad > 0 {
-		brandLine += strings.Repeat(" ", brandPad)
-	}
+	statsLine := statsLeft + strings.Repeat(" ", gap) + statsRight
 
-	// Pad stats line
-	statsPad := t.Width - lipgloss.Width(statsLine)
-	if statsPad > 0 {
-		statsLine += strings.Repeat(" ", statsPad)
-	}
-
-	// Bottom border
+	// Line 3: Bottom border
 	border := lipgloss.NewStyle().Foreground(ColorBorder).Render(
-		"  " + strings.Repeat("─", t.Width-4))
+		"  " + strings.Repeat("─", t.Width-4) + "  ")
 
 	return lipgloss.JoinVertical(lipgloss.Left, brandLine, statsLine, border)
 }
