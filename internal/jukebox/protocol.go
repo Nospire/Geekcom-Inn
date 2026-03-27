@@ -16,7 +16,12 @@ type TrackHeader struct {
 	Source   string `json:"source"`
 }
 
-// EncodeTrackHeader writes a track metadata header to w.
+// TrackFrame is a complete track: header + audio data.
+// Wire format: [4-byte header len][JSON header][4-byte audio len][MP3 bytes]
+//
+// Both lengths are big-endian uint32.
+
+// EncodeTrackHeader writes just the metadata header to w.
 // Format: [4 bytes big-endian length][JSON bytes]
 func EncodeTrackHeader(w io.Writer, track Track) error {
 	header := TrackHeader{
@@ -43,6 +48,11 @@ func EncodeTrackHeader(w io.Writer, track Track) error {
 	return nil
 }
 
+// EncodeAudioLength writes the MP3 data length prefix.
+func EncodeAudioLength(w io.Writer, length uint32) error {
+	return binary.Write(w, binary.BigEndian, length)
+}
+
 // DecodeTrackHeader reads a track metadata header from r.
 func DecodeTrackHeader(r io.Reader) (TrackHeader, error) {
 	var length uint32
@@ -65,4 +75,13 @@ func DecodeTrackHeader(r io.Reader) (TrackHeader, error) {
 	}
 
 	return header, nil
+}
+
+// DecodeAudioLength reads the MP3 data length from r.
+func DecodeAudioLength(r io.Reader) (uint32, error) {
+	var length uint32
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+		return 0, fmt.Errorf("read audio length: %w", err)
+	}
+	return length, nil
 }

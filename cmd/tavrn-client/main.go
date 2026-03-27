@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -165,64 +166,31 @@ func startAudioChannel(conn *ssh.Client) {
 
 	for {
 		// Read track header
-		header, err := jukebox.DecodeTrackHeader(br)
+		_, err := jukebox.DecodeTrackHeader(br)
 		if err != nil {
 			return // channel closed
 		}
-		_ = header
+
+		// Read audio length
+		audioLen, err := jukebox.DecodeAudioLength(br)
+		if err != nil {
+			return
+		}
 
 		// Spawn mpv to play this track's MP3 data.
-		// mpv reads from stdin, plays audio, no video, no terminal output.
 		cmd := exec.Command("mpv",
 			"--no-video",
 			"--no-terminal",
-			"--demuxer=lavf",
-			"--demuxer-lavf-format=mp3",
 			"-",
 		)
 
-		// Pipe MP3 bytes from the SSH channel to mpv's stdin.
-		// trackReader stops at the next track header boundary.
-		tr := &trackReader{br: br}
-		cmd.Stdin = tr
-
-		// Suppress all mpv output
+		// Pipe exactly audioLen bytes to mpv's stdin
+		cmd.Stdin = io.LimitReader(br, int64(audioLen))
 		cmd.Stdout = nil
 		cmd.Stderr = nil
 
-		if err := cmd.Run(); err != nil {
-			// mpv exited — could be track ended or error, either way continue
-			continue
-		}
+		cmd.Run()
 	}
-}
-
-// trackReader reads from a bufio.Reader until it encounters a track header
-// (detected by peeking: headers start with 0x00, MP3 frames start with 0xFF).
-type trackReader struct {
-	br   *bufio.Reader
-	done bool
-}
-
-func (t *trackReader) Read(p []byte) (int, error) {
-	if t.done {
-		return 0, fmt.Errorf("EOF")
-	}
-
-	// Peek to see if the next bytes are a track header
-	peek, err := t.br.Peek(1)
-	if err != nil {
-		t.done = true
-		return 0, err
-	}
-
-	if peek[0] == 0x00 {
-		// Next bytes are a track header — this track's MP3 data is done
-		t.done = true
-		return 0, fmt.Errorf("EOF")
-	}
-
-	return t.br.Read(p)
 }
 
 func handleResize(fd int, session *ssh.Session) {
