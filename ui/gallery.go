@@ -21,7 +21,7 @@ type GalleryNote struct {
 
 type GalleryView struct {
 	notes       []GalleryNote
-	selected    int // index into notes, -1 = none
+	selected    int
 	dragging    bool
 	dragOffsetX int
 	dragOffsetY int
@@ -40,28 +40,18 @@ func NewGalleryView(fingerprint string) GalleryView {
 	}
 }
 
-func (g *GalleryView) SetSize(width, height int) {
-	g.width = width
-	g.height = height
-}
+func (g *GalleryView) SetSize(w, h int)              { g.width = w; g.height = h }
+func (g *GalleryView) AddNote(n GalleryNote)          { g.notes = append(g.notes, n) }
+func (g *GalleryView) ClearAll()                      { g.notes = nil; g.selected = -1 }
 
 func (g *GalleryView) LoadNotes(rows []store.NoteRow) {
 	g.notes = make([]GalleryNote, len(rows))
 	for i, r := range rows {
 		g.notes[i] = GalleryNote{
-			ID:          r.ID,
-			X:           r.X,
-			Y:           r.Y,
-			Text:        r.Text,
-			Nickname:    r.Nickname,
-			Fingerprint: r.Fingerprint,
-			ColorIndex:  r.ColorIndex,
+			ID: r.ID, X: r.X, Y: r.Y, Text: r.Text,
+			Nickname: r.Nickname, Fingerprint: r.Fingerprint, ColorIndex: r.ColorIndex,
 		}
 	}
-}
-
-func (g *GalleryView) AddNote(n GalleryNote) {
-	g.notes = append(g.notes, n)
 }
 
 func (g *GalleryView) MoveNote(id, x, y int) {
@@ -86,17 +76,11 @@ func (g *GalleryView) RemoveNote(id int) {
 	}
 }
 
-func (g *GalleryView) ClearAll() {
-	g.notes = nil
-	g.selected = -1
-}
-
-// RandomPosition finds a spot for a new note.
 func (g *GalleryView) RandomPosition() (int, int) {
-	maxX := g.width - 22
-	maxY := g.height - 6
-	if maxX < 2 {
-		maxX = 2
+	maxX := g.width - 30
+	maxY := g.height - 8
+	if maxX < 4 {
+		maxX = 4
 	}
 	if maxY < 2 {
 		maxY = 2
@@ -109,7 +93,6 @@ func (g GalleryView) Update(msg tea.Msg) (GalleryView, tea.Cmd) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "d", "delete", "backspace":
-			// Delete selected note if it's yours
 			if g.selected >= 0 && g.selected < len(g.notes) {
 				note := g.notes[g.selected]
 				if note.Fingerprint == g.fingerprint {
@@ -119,7 +102,6 @@ func (g GalleryView) Update(msg tea.Msg) (GalleryView, tea.Cmd) {
 				}
 			}
 		case "tab":
-			// Cycle selection
 			if len(g.notes) > 0 {
 				g.selected = (g.selected + 1) % len(g.notes)
 			}
@@ -127,16 +109,7 @@ func (g GalleryView) Update(msg tea.Msg) (GalleryView, tea.Cmd) {
 
 	case tea.MouseClickMsg:
 		mx, my := msg.Mouse().X, msg.Mouse().Y
-		// Hit test — find topmost note under cursor
-		hit := -1
-		for i := len(g.notes) - 1; i >= 0; i-- {
-			n := g.notes[i]
-			nw, nh := noteSize(n.Text)
-			if mx >= n.X && mx < n.X+nw && my >= n.Y && my < n.Y+nh {
-				hit = i
-				break
-			}
-		}
+		hit := g.hitTest(mx, my)
 		if hit >= 0 {
 			g.selected = hit
 			g.dragging = true
@@ -147,10 +120,10 @@ func (g GalleryView) Update(msg tea.Msg) (GalleryView, tea.Cmd) {
 		}
 
 	case tea.MouseReleaseMsg:
-		if g.dragging && g.selected >= 0 {
-			g.dragging = false
+		if g.dragging && g.selected >= 0 && g.selected < len(g.notes) {
 			note := g.notes[g.selected]
 			if note.Fingerprint == g.fingerprint {
+				g.dragging = false
 				return g, func() tea.Msg {
 					return GalleryMoveMsg{NoteID: note.ID, X: note.X, Y: note.Y}
 				}
@@ -159,7 +132,7 @@ func (g GalleryView) Update(msg tea.Msg) (GalleryView, tea.Cmd) {
 		g.dragging = false
 
 	case tea.MouseMotionMsg:
-		if g.dragging && g.selected >= 0 {
+		if g.dragging && g.selected >= 0 && g.selected < len(g.notes) {
 			mx, my := msg.Mouse().X, msg.Mouse().Y
 			newX := mx - g.dragOffsetX
 			newY := my - g.dragOffsetY
@@ -169,6 +142,12 @@ func (g GalleryView) Update(msg tea.Msg) (GalleryView, tea.Cmd) {
 			if newY < 0 {
 				newY = 0
 			}
+			if newX > g.width-5 {
+				newX = g.width - 5
+			}
+			if newY > g.height-3 {
+				newY = g.height - 3
+			}
 			g.notes[g.selected].X = newX
 			g.notes[g.selected].Y = newY
 		}
@@ -177,51 +156,67 @@ func (g GalleryView) Update(msg tea.Msg) (GalleryView, tea.Cmd) {
 	return g, nil
 }
 
+func (g GalleryView) hitTest(mx, my int) int {
+	// Reverse order: topmost (last rendered) first
+	for i := len(g.notes) - 1; i >= 0; i-- {
+		n := g.notes[i]
+		w, h := noteSize(n.Text)
+		if mx >= n.X && mx < n.X+w && my >= n.Y && my < n.Y+h {
+			return i
+		}
+	}
+	return -1
+}
+
 func (g GalleryView) View() string {
 	if g.width == 0 || g.height == 0 {
 		return ""
 	}
 
-	// Build canvas manually — create a grid and stamp notes onto it
+	// Build background grid with dashed pattern
 	grid := make([][]rune, g.height)
-	colors := make([][]int, g.height) // -1 = no color, 0-11 = nick color
+	gridColor := make([][]int, g.height) // -1=bg, -2=bgPattern, 0-11=note color
 	for y := range grid {
 		grid[y] = make([]rune, g.width)
-		colors[y] = make([]int, g.width)
+		gridColor[y] = make([]int, g.width)
 		for x := range grid[y] {
-			grid[y][x] = ' '
-			colors[y][x] = -1
+			// Diagonal hatch pattern like the bubbletea example
+			if (x+y)%4 == 0 {
+				grid[y][x] = '╲'
+				gridColor[y][x] = -2 // bg pattern
+			} else if (x+y)%4 == 2 {
+				grid[y][x] = '╱'
+				gridColor[y][x] = -2
+			} else {
+				grid[y][x] = ' '
+				gridColor[y][x] = -1
+			}
 		}
 	}
 
-	// Empty state
+	// Empty state hint
 	if len(g.notes) == 0 {
-		hint := "the board is empty. press CTRL+P to leave a note."
-		hintStyle := lipgloss.NewStyle().Foreground(ColorDim).Italic(true)
+		hint := "CTRL+P to post a note"
 		cx := (g.width - len(hint)) / 2
 		cy := g.height / 2
 		if cx < 0 {
 			cx = 0
 		}
-
-		// Render as simple centered text
-		var lines []string
-		for y := 0; y < g.height; y++ {
-			if y == cy {
-				pad := strings.Repeat(" ", cx)
-				lines = append(lines, pad+hintStyle.Render(hint))
-			} else {
-				lines = append(lines, strings.Repeat(" ", g.width))
+		for i, ch := range hint {
+			rx := cx + i
+			if rx >= 0 && rx < g.width && cy >= 0 && cy < g.height {
+				grid[cy][rx] = ch
+				gridColor[cy][rx] = -3 // hint color
 			}
 		}
-		return strings.Join(lines, "\n")
 	}
 
-	// Render each note as a bordered box
+	// Stamp notes onto grid
 	for idx, note := range g.notes {
 		isSelected := idx == g.selected
-		lines := renderNote(note, isSelected, note.Fingerprint == g.fingerprint)
-		for dy, line := range lines {
+		isOwn := note.Fingerprint == g.fingerprint
+		card := renderNoteCard(note, isSelected, isOwn)
+		for dy, line := range card {
 			ry := note.Y + dy
 			if ry < 0 || ry >= g.height {
 				continue
@@ -230,63 +225,69 @@ func (g GalleryView) View() string {
 			for _, ch := range line {
 				if rx >= 0 && rx < g.width {
 					grid[ry][rx] = ch
-					colors[ry][rx] = note.ColorIndex
+					gridColor[ry][rx] = note.ColorIndex
 				}
 				rx++
 			}
 		}
 	}
 
-	// Render grid to styled string
+	// Render to styled string
+	bgPatternStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("237"))
+	hintStyle := lipgloss.NewStyle().Foreground(ColorDim).Italic(true)
+
 	var result []string
 	for y := 0; y < g.height; y++ {
 		var b strings.Builder
-		prevColor := -2
+		prevKind := -99
 		run := ""
-		for x := 0; x < g.width; x++ {
-			c := colors[y][x]
-			ch := string(grid[y][x])
-			if c != prevColor {
-				// Flush previous run
-				if run != "" {
-					b.WriteString(colorRun(run, prevColor))
-				}
-				run = ch
-				prevColor = c
-			} else {
-				run += ch
+
+		flushRun := func() {
+			if run == "" {
+				return
 			}
+			switch prevKind {
+			case -1:
+				b.WriteString(run) // plain space
+			case -2:
+				b.WriteString(bgPatternStyle.Render(run))
+			case -3:
+				b.WriteString(hintStyle.Render(run))
+			default:
+				b.WriteString(lipgloss.NewStyle().Foreground(NickColors[prevKind%len(NickColors)]).Render(run))
+			}
+			run = ""
 		}
-		if run != "" {
-			b.WriteString(colorRun(run, prevColor))
+
+		for x := 0; x < g.width; x++ {
+			kind := gridColor[y][x]
+			ch := string(grid[y][x])
+			if kind != prevKind {
+				flushRun()
+				prevKind = kind
+			}
+			run += ch
 		}
+		flushRun()
 		result = append(result, b.String())
 	}
 	return strings.Join(result, "\n")
 }
 
-func colorRun(text string, colorIdx int) string {
-	if colorIdx < 0 {
-		return text // no color, plain
-	}
-	return lipgloss.NewStyle().Foreground(NickColors[colorIdx%len(NickColors)]).Render(text)
-}
-
-func renderNote(note GalleryNote, selected, isOwn bool) []string {
-	// Note dimensions
-	textW := len(note.Text)
-	if textW > 18 {
-		textW = 18
-	}
-	innerW := textW + 2
-	if innerW < len(note.Nickname)+2 {
-		innerW = len(note.Nickname) + 2
-	}
-	if innerW < 10 {
-		innerW = 10
+func renderNoteCard(note GalleryNote, selected, isOwn bool) []string {
+	// Bigger cards with padding
+	maxTextW := 24
+	text := note.Text
+	if len(text) > maxTextW {
+		text = text[:maxTextW]
 	}
 
-	// Border characters
+	innerW := maxTextW + 2 // padding inside borders
+	if innerW < 14 {
+		innerW = 14
+	}
+
+	// Border chars
 	tl, tr, bl, br := "╭", "╮", "╰", "╯"
 	h, v := "─", "│"
 	if selected {
@@ -297,78 +298,78 @@ func renderNote(note GalleryNote, selected, isOwn bool) []string {
 	var lines []string
 
 	// Top border
-	top := tl + strings.Repeat(h, innerW) + tr
-	lines = append(lines, top)
+	lines = append(lines, tl+strings.Repeat(h, innerW)+tr)
 
-	// Text lines (word wrap)
-	wrapped := simpleWrap(note.Text, innerW-2)
+	// Empty padding line
+	lines = append(lines, v+strings.Repeat(" ", innerW)+v)
+
+	// Text lines (word wrapped)
+	wrapped := wrapText(text, innerW-2)
 	for _, wl := range wrapped {
-		pad := innerW - len(wl)
+		pad := innerW - 2 - len(wl)
 		if pad < 0 {
 			pad = 0
 		}
-		lines = append(lines, v+" "+wl+strings.Repeat(" ", pad-1)+v)
+		lines = append(lines, v+" "+wl+strings.Repeat(" ", pad)+" "+v)
 	}
+
+	// Empty padding line
+	lines = append(lines, v+strings.Repeat(" ", innerW)+v)
+
+	// Separator
+	lines = append(lines, v+strings.Repeat("·", innerW)+v)
 
 	// Nick line
 	nick := note.Nickname
 	if isOwn {
 		nick = "~" + nick
 	}
-	nickPad := innerW - len(nick) - 1
+	nickPad := innerW - 2 - len(nick)
 	if nickPad < 0 {
 		nickPad = 0
 	}
-	lines = append(lines, v+" "+nick+strings.Repeat(" ", nickPad)+v)
+	lines = append(lines, v+" "+nick+strings.Repeat(" ", nickPad)+" "+v)
 
 	// Bottom border
-	bot := bl + strings.Repeat(h, innerW) + br
-	lines = append(lines, bot)
+	lines = append(lines, bl+strings.Repeat(h, innerW)+br)
 
 	return lines
 }
 
-func simpleWrap(text string, width int) []string {
-	if width <= 0 {
-		return []string{text}
-	}
-	if len(text) <= width {
+func wrapText(text string, width int) []string {
+	if width <= 0 || len(text) <= width {
 		return []string{text}
 	}
 	var lines []string
-	for len(text) > width {
-		// Find last space within width
-		cut := width
-		for i := width; i > 0; i-- {
-			if text[i] == ' ' {
-				cut = i
-				break
-			}
+	words := strings.Fields(text)
+	cur := ""
+	for _, w := range words {
+		if cur == "" {
+			cur = w
+		} else if len(cur)+1+len(w) <= width {
+			cur += " " + w
+		} else {
+			lines = append(lines, cur)
+			cur = w
 		}
-		lines = append(lines, text[:cut])
-		text = strings.TrimLeft(text[cut:], " ")
 	}
-	if text != "" {
-		lines = append(lines, text)
+	if cur != "" {
+		lines = append(lines, cur)
 	}
 	return lines
 }
 
 func noteSize(text string) (int, int) {
-	textW := len(text)
-	if textW > 18 {
-		textW = 18
+	maxTextW := 24
+	innerW := maxTextW + 2
+	if innerW < 14 {
+		innerW = 14
 	}
-	innerW := textW + 2
-	if innerW < 10 {
-		innerW = 10
-	}
-	w := innerW + 2 // borders
-	wrapped := simpleWrap(text, innerW-2)
-	h := len(wrapped) + 3 // top border + text lines + nick + bottom border
+	w := innerW + 2 // + border chars
+	wrapped := wrapText(text, innerW-2)
+	h := len(wrapped) + 5 // top + pad + text + pad + separator + nick + bottom
 	return w, h
 }
 
-// Messages from gallery to app
 type GalleryDeleteMsg struct{ NoteID int }
 type GalleryMoveMsg struct{ NoteID, X, Y int }
