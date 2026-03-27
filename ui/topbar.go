@@ -7,6 +7,14 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+// Scrolling diagonal frames for the top bar decoration
+var topBarDiagFrames = []string{
+	"╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱",
+	"╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱",
+	"╲╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╲",
+	"╱╲╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╲╱",
+}
+
 type TopBar struct {
 	Room        string
 	OnlineCount int
@@ -25,49 +33,54 @@ func (t TopBar) View() string {
 		return ""
 	}
 
-	// Line 1: ╱╱╱ decorative fill with title centered
-	titleText := " TAVRN.SH "
-	titleRendered := GradientText(titleText, ColorHighlight, ColorAmber, true)
-	titleWidth := len(titleText)
-
-	fillTotal := t.Width - titleWidth - 4
-	if fillTotal < 4 {
-		fillTotal = 4
+	// Line 1: Animated diagonal fill bar (full width)
+	diagPattern := topBarDiagFrames[t.Frame%len(topBarDiagFrames)]
+	// Repeat to fill width
+	fillRunes := []rune(diagPattern)
+	var fillBuf strings.Builder
+	for i := 0; i < t.Width; i++ {
+		fillBuf.WriteRune(fillRunes[i%len(fillRunes)])
 	}
-	leftFillN := fillTotal / 2
-	rightFillN := fillTotal - leftFillN
+	pair := artGradientPairs[t.Frame%len(artGradientPairs)]
+	diagLine := GradientText(fillBuf.String(), pair[0], pair[1], false)
 
-	leftFill := lipgloss.NewStyle().Foreground(ColorBorder).Render(
-		"  " + strings.Repeat("╱", leftFillN))
-	rightFill := lipgloss.NewStyle().Foreground(ColorBorder).Render(
-		strings.Repeat("╱", rightFillN) + "  ")
-
-	brandLine := leftFill + titleRendered + rightFill
-
-	// Line 2: Stats
+	// Line 2: Stats — left: online/weekly, center: title, right: room
 	onlineDot := lipgloss.NewStyle().Foreground(ColorGreen).Render("●")
 	onlineNum := lipgloss.NewStyle().Foreground(ColorSand).Bold(true).Render(
 		fmt.Sprintf("%d online", t.OnlineCount))
 	weekly := lipgloss.NewStyle().Foreground(ColorDim).Render(
 		fmt.Sprintf("%d this week", t.WeeklyCount))
-	room := lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).Render(
-		fmt.Sprintf("#%s", t.Room))
 	dot := lipgloss.NewStyle().Foreground(ColorDimmer).Render(" · ")
 
 	statsLeft := fmt.Sprintf("  %s %s%s%s", onlineDot, onlineNum, dot, weekly)
 
-	// Right-align room name
-	statsRight := room + "  "
-	gap := t.Width - lipgloss.Width(statsLeft) - lipgloss.Width(statsRight)
-	if gap < 0 {
-		gap = 0
+	// Center: big gradient title
+	titleText := "TAVRN.SH"
+	title := GradientText(titleText, pair[1], pair[0], true)
+
+	// Right: room name
+	room := lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).Render(
+		fmt.Sprintf("#%s  ", t.Room))
+
+	// Position title in center
+	leftW := lipgloss.Width(statsLeft)
+	rightW := lipgloss.Width(room)
+	titleW := len(titleText)
+	centerPos := (t.Width - titleW) / 2
+	gapLeft := centerPos - leftW
+	gapRight := t.Width - centerPos - titleW - rightW
+	if gapLeft < 1 {
+		gapLeft = 1
+	}
+	if gapRight < 1 {
+		gapRight = 1
 	}
 
-	statsLine := statsLeft + strings.Repeat(" ", gap) + statsRight
+	statsLine := statsLeft + strings.Repeat(" ", gapLeft) + title + strings.Repeat(" ", gapRight) + room
 
-	// Line 3: Bottom border
+	// Line 3: bottom border
 	border := lipgloss.NewStyle().Foreground(ColorBorder).Render(
 		"  " + strings.Repeat("─", t.Width-4) + "  ")
 
-	return lipgloss.JoinVertical(lipgloss.Left, brandLine, statsLine, border)
+	return lipgloss.JoinVertical(lipgloss.Left, diagLine, statsLine, border)
 }
