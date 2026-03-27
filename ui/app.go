@@ -31,6 +31,14 @@ const (
 	stateTavern
 )
 
+const (
+	splashTickInterval     = 150 * time.Millisecond
+	transitionTickInterval = time.Second / 30
+	typingTickInterval     = 250 * time.Millisecond
+	musicTickInterval      = 500 * time.Millisecond
+	idleTickInterval       = 2 * time.Second
+)
+
 type App struct {
 	state          appState
 	splash         Splash
@@ -51,12 +59,12 @@ type App struct {
 	gallery GalleryView
 
 	// Modal
-	modal             ModalType
-	helpModal         HelpModal
-	nickModal         NickModal
-	joinRoomModal     JoinRoomModal
-	postModal         PostModal
-	expandNoteModal   ExpandNoteModal
+	modal           ModalType
+	helpModal       HelpModal
+	nickModal       NickModal
+	joinRoomModal   JoinRoomModal
+	postModal       PostModal
+	expandNoteModal ExpandNoteModal
 
 	// Jukebox
 	jukeboxModal  JukeboxModal
@@ -97,14 +105,14 @@ func WaitForHubMsg(ch <-chan session.Msg) tea.Cmd {
 	}
 }
 
-func doTick() tea.Cmd {
-	return tea.Tick(150*time.Millisecond, func(t time.Time) tea.Msg {
+func doTick(interval time.Duration) tea.Cmd {
+	return tea.Tick(interval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
 
 func (a App) Init() tea.Cmd {
-	return tea.Batch(WaitForHubMsg(a.session.Send), doTick())
+	return tea.Batch(WaitForHubMsg(a.session.Send), doTick(a.nextTickInterval()))
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -124,9 +132,15 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tickMsg:
-		a.topBar.Frame++
-		a.online.Frame++
-		a.chat.Tick()
+		if a.hasActiveTrack() {
+			a.topBar.Frame++
+		}
+		if a.hub.OnlineCount() > 0 {
+			a.online.Frame++
+		}
+		if a.state == stateTavern {
+			a.chat.Tick()
+		}
 		if a.state == stateSplash {
 			a.splash.frame++
 			a.splash.tickSparks()
@@ -139,7 +153,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.state = stateTavern
 			}
 		}
-		return a, doTick()
+		return a, doTick(a.nextTickInterval())
 
 	case JukeboxAddMsg:
 		if a.jukeboxEngine != nil {
@@ -721,9 +735,34 @@ func (a App) View() tea.View {
 
 	v := tea.NewView(base)
 	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
+	if a.session.Room == "gallery" {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
 	v.WindowTitle = "tavrn.sh"
 	return v
+}
+
+func (a App) nextTickInterval() time.Duration {
+	switch a.state {
+	case stateSplash:
+		return splashTickInterval
+	case stateTransition:
+		return transitionTickInterval
+	}
+	if a.chat.HasTypingUsers() {
+		return typingTickInterval
+	}
+	if a.hasActiveTrack() {
+		return musicTickInterval
+	}
+	return idleTickInterval
+}
+
+func (a App) hasActiveTrack() bool {
+	if a.jukeboxEngine == nil {
+		return false
+	}
+	return a.jukeboxEngine.State().Current != nil
 }
 
 func (a App) jukeboxSearch(query string) tea.Cmd {

@@ -92,6 +92,10 @@ func (c *ChatView) Tick() {
 	c.renderMessages()
 }
 
+func (c ChatView) HasTypingUsers() bool {
+	return len(c.typingUsers) > 0
+}
+
 func (c *ChatView) renderMessages() {
 	var lines []string
 	now := time.Now()
