@@ -246,9 +246,24 @@ func updateEnv() []string {
 	if current := os.Getenv("PATH"); current != "" {
 		pathParts = append(pathParts, current)
 	}
-
-	env := os.Environ()
-	env = append(env, "PATH="+strings.Join(pathParts, ":"))
+	mergedPath := "PATH=" + strings.Join(pathParts, ":")
+	base := os.Environ()
+	env := make([]string, 0, len(base)+1)
+	replaced := false
+	for _, kv := range base {
+		if strings.HasPrefix(kv, "PATH=") {
+			if !replaced {
+				env = append(env, mergedPath)
+				replaced = true
+			}
+			continue
+		}
+		env = append(env, kv)
+	}
+	if !replaced {
+		env = append(env, mergedPath)
+	}
+	return env
 	return env
 }
 
@@ -292,7 +307,8 @@ func resolveCommand(name string, env []string) (string, error) {
 	}
 
 	pathEnv := os.Getenv("PATH")
-	for _, kv := range env {
+	for i := len(env) - 1; i >= 0; i-- {
+		kv := env[i]
 		if strings.HasPrefix(kv, "PATH=") {
 			pathEnv = strings.TrimPrefix(kv, "PATH=")
 			break
