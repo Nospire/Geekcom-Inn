@@ -2,13 +2,29 @@ package identity
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 )
 
-// DefaultNickname returns the first 8 hex chars of SHA256(fingerprint).
+// DefaultNickname returns a tavern-themed name from the fingerprint.
 func DefaultNickname(fingerprint string) string {
 	hash := sha256.Sum256([]byte(fingerprint))
-	return hex.EncodeToString(hash[:])[:8]
+	idx := int(hash[0])
+
+	adjectives := []string{
+		"dusty", "quiet", "wandering", "sleepy", "hooded",
+		"scarred", "weary", "shadowy", "lone", "grizzled",
+		"nimble", "silent", "copper", "ashen", "veiled",
+		"stout", "swift", "rusty", "hollow", "mossy",
+	}
+	nouns := []string{
+		"pilgrim", "drifter", "bard", "ranger", "rogue",
+		"sage", "merchant", "smith", "herald", "scout",
+		"monk", "keeper", "hunter", "scribe", "warden",
+		"brewer", "hermit", "jester", "rider", "ghost",
+	}
+
+	adj := adjectives[idx%len(adjectives)]
+	noun := nouns[int(hash[1])%len(nouns)]
+	return adj + "_" + noun
 }
 
 // ColorIndex returns 0-11 for mapping a fingerprint to one of 12 cantina colors.
