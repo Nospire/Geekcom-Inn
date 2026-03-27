@@ -4,3 +4,4 @@ tavrn.db
 *.db-wal
 *.db-shm
 docs/superpowers/
+.worktrees/
