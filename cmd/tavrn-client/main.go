@@ -174,6 +174,8 @@ func killMPV() {
 	activeMPV = nil
 	activeMPVMu.Unlock()
 	if p != nil {
+		// Kill the entire process group
+		syscall.Kill(-p.Pid, syscall.SIGKILL)
 		p.Kill()
 	}
 }
@@ -204,43 +206,80 @@ func startAudioChannel(ctx context.Context, conn *ssh.Client) {
 			return
 		}
 
-		cmd := exec.CommandContext(ctx, "mpv",
-			"--no-video",
-			"--no-terminal",
-			"--no-cache",
-			"-",
-		)
-
-		// Ensure mpv dies when parent process dies
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		cmd.Stdin = io.LimitReader(br, int64(audioLen))
-		cmd.Stdout = nil
-		cmd.Stderr = nil
-
-		if err := cmd.Start(); err != nil {
-			continue
-		}
-
-		activeMPVMu.Lock()
-		activeMPV = cmd.Process
-		activeMPVMu.Unlock()
-
-		done := make(chan error, 1)
-		go func() { done <- cmd.Wait() }()
-
-		select {
-		case <-done:
-			// mpv finished normally
-		case <-ctx.Done():
-			cmd.Process.Kill()
-			<-done
-			return
-		}
-
-		activeMPVMu.Lock()
-		activeMPV = nil
-		activeMPVMu.Unlock()
+		playTrack(ctx, br, int64(audioLen))
 	}
+}
+
+func playTrack(ctx context.Context, r io.Reader, audioLen int64) {
+	// Use io.Pipe so we control the flow of data to mpv.
+	// This way mpv only has what we've written — killing the pipe stops it.
+	pr, pw := io.Pipe()
+
+	cmd := exec.Command("mpv",
+		"--no-video",
+		"--no-terminal",
+		"--no-cache",
+		"-",
+	)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Stdin = pr
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	if err := cmd.Start(); err != nil {
+		pw.Close()
+		pr.Close()
+		return
+	}
+
+	activeMPVMu.Lock()
+	activeMPV = cmd.Process
+	activeMPVMu.Unlock()
+
+	// Feed audio data to mpv in chunks, watching for context cancellation
+	feedDone := make(chan struct{})
+	go func() {
+		defer pw.Close()
+		defer close(feedDone)
+
+		limited := io.LimitReader(r, audioLen)
+		buf := make([]byte, 8192)
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+			n, err := limited.Read(buf)
+			if n > 0 {
+				if _, werr := pw.Write(buf[:n]); werr != nil {
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Wait for mpv to finish or context to cancel
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case <-done:
+		// Track finished playing
+	case <-ctx.Done():
+		// Session ended — kill mpv
+		pw.Close()
+		killMPV()
+		<-done
+		return
+	}
+
+	<-feedDone
+
+	activeMPVMu.Lock()
+	activeMPV = nil
+	activeMPVMu.Unlock()
 }
 
 func handleResize(fd int, session *ssh.Session) {
