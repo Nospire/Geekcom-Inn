@@ -129,7 +129,7 @@ func (e *Engine) AddRequest(userFP string, track Track) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if e.phase != PhaseRequesting && e.phase != PhaseVoting {
+	if e.phase == PhaseIdle {
 		return
 	}
 

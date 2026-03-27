@@ -43,6 +43,9 @@ type JukeboxModal struct {
 	voteCursor int
 	hasVoted   bool
 	votedFor   string
+
+	// Confirmation
+	lastAdded string // track title just added
 }
 
 func NewJukeboxModal(engine *jukebox.Engine) JukeboxModal {
@@ -110,6 +113,9 @@ func (m JukeboxModal) updateSearch(msg tea.KeyPressMsg) (JukeboxModal, tea.Cmd) 
 	case "enter":
 		if len(m.searchResults) > 0 && m.searchCursor < len(m.searchResults) {
 			track := m.searchResults[m.searchCursor]
+			m.lastAdded = track.Title
+			m.tab = tabNowPlaying
+			m.searchInput.Blur()
 			return m, func() tea.Msg { return JukeboxAddMsg{Track: track} }
 		}
 		query := strings.TrimSpace(m.searchInput.Value())
@@ -265,6 +271,18 @@ func (m JukeboxModal) viewNowPlaying(w int) string {
 	state := m.engine.State()
 
 	var b strings.Builder
+
+	// Confirmation banner
+	if m.lastAdded != "" {
+		added := m.lastAdded
+		if len(added) > w-10 {
+			added = added[:w-13] + "..."
+		}
+		b.WriteString(lipgloss.NewStyle().Foreground(ColorGreen).Render(
+			fmt.Sprintf("  ✓ Added \"%s\"", added)))
+		b.WriteString("\n\n")
+	}
+
 	if state.Current == nil {
 		b.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Italic(true).Render(
 			"  No track playing"))
@@ -272,6 +290,7 @@ func (m JukeboxModal) viewNowPlaying(w int) string {
 		return b.String()
 	}
 
+	// Now playing
 	title := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render(state.Current.Title)
 	artist := lipgloss.NewStyle().Foreground(ColorSand).Render(state.Current.Artist)
 	source := lipgloss.NewStyle().Foreground(ColorDimmer).Render("[" + state.Current.Source + "]")
@@ -279,6 +298,7 @@ func (m JukeboxModal) viewNowPlaying(w int) string {
 	b.WriteString("  " + title + "\n")
 	b.WriteString("  " + artist + "  " + source + "\n\n")
 
+	// Progress bar
 	pos := formatDuration(state.Position)
 	dur := formatDuration(state.Current.DurationTime())
 	barWidth := w - 14
@@ -300,24 +320,34 @@ func (m JukeboxModal) viewNowPlaying(w int) string {
 		fmt.Sprintf(" %s/%s", pos, dur))
 	b.WriteString("  " + bar + timeStr + "\n\n")
 
+	// Up next queue
 	if len(state.Requests) > 0 {
-		b.WriteString(lipgloss.NewStyle().Foreground(ColorAccent).Bold(true).Render("  Queue:"))
+		b.WriteString(lipgloss.NewStyle().Foreground(ColorAccent).Bold(true).Render("  Up Next:"))
 		b.WriteString("\n")
-		limit := 3
+		limit := 5
 		if len(state.Requests) < limit {
 			limit = len(state.Requests)
 		}
 		for i := 0; i < limit; i++ {
 			req := state.Requests[i]
 			num := lipgloss.NewStyle().Foreground(ColorDim).Render(fmt.Sprintf("  %d.", i+1))
-			reqTitle := lipgloss.NewStyle().Foreground(ColorSand).Render(req.Track.Title)
+			reqTitle := req.Track.Title
+			if len(reqTitle) > w-12 {
+				reqTitle = reqTitle[:w-15] + "..."
+			}
+			name := lipgloss.NewStyle().Foreground(ColorSand).Render(reqTitle)
 			count := lipgloss.NewStyle().Foreground(ColorDimmer).Render(
 				fmt.Sprintf("  %d req", req.Count))
-			b.WriteString(fmt.Sprintf("%s %s%s\n", num, reqTitle, count))
+			b.WriteString(fmt.Sprintf("%s %s%s\n", num, name, count))
+		}
+		if len(state.Requests) > 5 {
+			b.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render(
+				fmt.Sprintf("  +%d more\n", len(state.Requests)-5)))
 		}
 		b.WriteString("\n")
 	}
 
+	// Phase + stats
 	phaseStr := ""
 	switch state.Phase {
 	case jukebox.PhasePlaying:
