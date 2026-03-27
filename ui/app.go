@@ -48,9 +48,10 @@ type App struct {
 	lastTypingSent time.Time
 
 	// Modal
-	modal     ModalType
-	helpModal HelpModal
-	nickModal NickModal
+	modal         ModalType
+	helpModal     HelpModal
+	nickModal     NickModal
+	joinRoomModal JoinRoomModal
 
 	// Transition animation
 	transSpring harmonica.Spring
@@ -140,6 +141,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case NickChangeMsg:
 		return a.applyNickChange(msg.Nick)
+
+	case JoinRoomMsg:
+		a.modal = ModalNone
+		if msg.Room != a.session.Room {
+			a.switchRoom(msg.Room)
+		}
+		return a, nil
 	}
 
 	// Splash state — handle keys directly (tick/resize handled above)
@@ -208,6 +216,10 @@ func (a App) updateModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ModalNick:
 		var cmd tea.Cmd
 		a.nickModal, cmd = a.nickModal.Update(msg)
+		return a, cmd
+	case ModalJoinRoom:
+		var cmd tea.Cmd
+		a.joinRoomModal, cmd = a.joinRoomModal.Update(msg)
 		return a, cmd
 	case ModalHelp:
 		// Help modal only responds to ESC (handled above)
@@ -297,21 +309,26 @@ func (a *App) handleCommand(parsed chat.ParseResult) {
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, text))
 
 	case "join":
+		// If arg provided, join directly
 		target := strings.TrimPrefix(strings.TrimSpace(parsed.Args), "#")
-		if target == "" {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Usage: /join <room>"))
+		if target != "" {
+			if !room.IsValid(target) {
+				a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
+					fmt.Sprintf("Unknown room. Available: %s", strings.Join(room.All, ", "))))
+				return
+			}
+			if target != a.session.Room {
+				a.switchRoom(target)
+			}
 			return
 		}
-		if !room.IsValid(target) {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
-				fmt.Sprintf("Unknown room. Available: %s", strings.Join(room.All, ", "))))
-			return
+		// No arg: open room picker modal
+		var counts []int
+		for _, rName := range room.All {
+			counts = append(counts, len(a.hub.Sessions(rName)))
 		}
-		if target == a.session.Room {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "You're already here."))
-			return
-		}
-		a.switchRoom(target)
+		a.modal = ModalJoinRoom
+		a.joinRoomModal = NewJoinRoomModal(room.All, counts, a.session.Room)
 
 	case "ban", "unban", "purge":
 		if !a.session.IsAdmin {
@@ -490,6 +507,8 @@ func (a App) View() tea.View {
 			modalBox = a.helpModal.View(a.width, a.height)
 		case ModalNick:
 			modalBox = a.nickModal.View(a.width, a.height)
+		case ModalJoinRoom:
+			modalBox = a.joinRoomModal.View(a.width, a.height)
 		}
 		base = Overlay(base, modalBox, a.width, a.height)
 	}

@@ -15,6 +15,7 @@ const (
 	ModalNone ModalType = iota
 	ModalHelp
 	ModalNick
+	ModalJoinRoom
 )
 
 // CloseModalMsg signals modal should close.
@@ -197,4 +198,126 @@ func (n NickModal) View(width, height int) string {
 		BorderForeground(ColorBorder).
 		Padding(1, 2).
 		Render(b.String())
+}
+
+// ─────────────────────────────────────
+// Join Room Modal
+// ─────────────────────────────────────
+
+// JoinRoomMsg carries the selected room name.
+type JoinRoomMsg struct{ Room string }
+
+type JoinRoomModal struct {
+	rooms       []string
+	counts      []int
+	currentRoom string
+	cursor      int
+}
+
+func NewJoinRoomModal(rooms []string, counts []int, currentRoom string) JoinRoomModal {
+	cursor := 0
+	for i, r := range rooms {
+		if r == currentRoom {
+			cursor = i
+			break
+		}
+	}
+	return JoinRoomModal{
+		rooms:       rooms,
+		counts:      counts,
+		currentRoom: currentRoom,
+		cursor:      cursor,
+	}
+}
+
+func (j JoinRoomModal) Update(msg tea.Msg) (JoinRoomModal, tea.Cmd) {
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		switch keyMsg.String() {
+		case "esc":
+			return j, func() tea.Msg { return CloseModalMsg{} }
+		case "enter":
+			selected := j.rooms[j.cursor]
+			return j, func() tea.Msg { return JoinRoomMsg{Room: selected} }
+		case "up", "k":
+			j.cursor--
+			if j.cursor < 0 {
+				j.cursor = len(j.rooms) - 1
+			}
+		case "down", "j":
+			j.cursor++
+			if j.cursor >= len(j.rooms) {
+				j.cursor = 0
+			}
+		}
+	}
+	return j, nil
+}
+
+func (j JoinRoomModal) View(width, height int) string {
+	headerText := " Join Room "
+	fillLen := 36 - len(headerText)
+	if fillLen < 4 {
+		fillLen = 4
+	}
+	leftFill := strings.Repeat("╱", fillLen/2)
+	rightFill := strings.Repeat("╱", fillLen-fillLen/2)
+
+	headerFill := lipgloss.NewStyle().Foreground(ColorBorder).Render(leftFill)
+	headerTitle := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render(headerText)
+	headerFillR := lipgloss.NewStyle().Foreground(ColorBorder).Render(rightFill)
+	header := headerFill + headerTitle + headerFillR
+
+	var b2 strings.Builder
+	b2.WriteString(header)
+	b2.WriteString("\n\n")
+
+	for i, rm := range j.rooms {
+		count := 0
+		if i < len(j.counts) {
+			count = j.counts[i]
+		}
+
+		isCurrent := rm == j.currentRoom
+		isSelected := i == j.cursor
+
+		name := fmt.Sprintf("#%s", rm)
+		countStr := fmt.Sprintf("  %d online", count)
+
+		var line string
+		if isSelected {
+			indicator := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render(" ▸ ")
+			roomStyle := lipgloss.NewStyle().Foreground(ColorAmber).Bold(true)
+			countStyle := lipgloss.NewStyle().Foreground(ColorDim)
+			line = indicator + roomStyle.Render(name) + countStyle.Render(countStr)
+		} else {
+			roomStyle := lipgloss.NewStyle().Foreground(ColorSand)
+			countStyle := lipgloss.NewStyle().Foreground(ColorDimmer)
+			line = "   " + roomStyle.Render(name) + countStyle.Render(countStr)
+		}
+
+		if isCurrent {
+			tag := lipgloss.NewStyle().Foreground(ColorDim).Render("  (here)")
+			line += tag
+		}
+
+		b2.WriteString(line)
+		b2.WriteString("\n")
+	}
+
+	b2.WriteString("\n")
+	footerFill := lipgloss.NewStyle().Foreground(ColorBorder).Render(
+		strings.Repeat("╱", 36))
+	b2.WriteString(footerFill)
+	b2.WriteString("\n")
+	arrows := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("↑↓")
+	enterK := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ENTER")
+	escK := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ESC")
+	b2.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render(
+		fmt.Sprintf("  %s navigate  ·  %s join  ·  %s cancel", arrows, enterK, escK)))
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorBorder).
+		Padding(1, 2).
+		Render(b2.String())
 }
