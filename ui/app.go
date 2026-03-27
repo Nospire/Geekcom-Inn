@@ -421,16 +421,26 @@ func (a *App) switchRoom(target string) {
 }
 
 func (a *App) doLayout() {
-	roomsWidth := 16
-	onlineWidth := 18
-	if a.width < 90 {
-		roomsWidth = 0
-		onlineWidth = 0
-	} else if a.width < 110 {
+	roomsWidth := 0
+	onlineWidth := 0
+	if a.width >= 120 {
+		roomsWidth = 16
+		onlineWidth = 18
+	} else if a.width >= 100 {
 		roomsWidth = 14
 		onlineWidth = 16
+	} else if a.width >= 80 {
+		// Single sidebar only — rooms on left
+		roomsWidth = 14
+		onlineWidth = 0
 	}
 	chatWidth := a.width - roomsWidth - onlineWidth
+	if chatWidth < 30 {
+		// Too narrow, drop all sidebars
+		roomsWidth = 0
+		onlineWidth = 0
+		chatWidth = a.width
+	}
 
 	topBarHeight := 3
 	bottomBarHeight := 2
@@ -489,10 +499,15 @@ func (a App) View() tea.View {
 	bottomBar := a.bottomBar.View()
 
 	var mainArea string
-	if a.rooms.Width > 0 {
+	if a.rooms.Width > 0 && a.online.Width > 0 {
+		// 3-column: rooms | chat | online
 		roomsView := a.rooms.View()
 		onlineView := a.online.View()
 		mainArea = lipgloss.JoinHorizontal(lipgloss.Top, roomsView, chatView, onlineView)
+	} else if a.rooms.Width > 0 {
+		// 2-column: rooms | chat
+		roomsView := a.rooms.View()
+		mainArea = lipgloss.JoinHorizontal(lipgloss.Top, roomsView, chatView)
 	} else {
 		mainArea = chatView
 	}
