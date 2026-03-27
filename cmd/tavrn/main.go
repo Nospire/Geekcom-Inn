@@ -203,7 +203,6 @@ func runUpdate(restartServer bool) error {
 		if err := runCommand(repoDir, env, "sudo", "/usr/local/sbin/tavrn-refresh-client"); err != nil {
 			return err
 		}
-		return err
 	}
 
 	rev, err := commandOutput(repoDir, env, "git", "rev-parse", "--short", "HEAD")
@@ -263,7 +262,6 @@ func updateEnv() []string {
 	if !replaced {
 		env = append(env, mergedPath)
 	}
-	return env
 	return env
 }
 
