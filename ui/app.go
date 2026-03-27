@@ -504,7 +504,7 @@ func (a *App) switchRoom(target string) {
 		// Load gallery notes
 		notes, _ := a.store.AllNotes()
 		a.gallery = NewGalleryView(a.session.Fingerprint)
-		a.gallery.SetSize(a.width, a.height-5) // account for top/bottom bars
+		a.doLayout() // sets size and screen offset
 		a.gallery.LoadNotes(notes)
 	} else {
 		// Load chat history
@@ -572,6 +572,7 @@ func (a *App) doLayout() {
 	a.online.Height = mainHeight
 	a.chat.SetSize(chatWidth, mainHeight)
 	a.gallery.SetSize(chatWidth, mainHeight)
+	a.gallery.SetScreenOffset(roomsWidth, topBarHeight)
 }
 
 func (a App) View() tea.View {
