@@ -47,16 +47,6 @@ F1  help          F2  nickname       F3  rooms
 F4  jukebox       F5  post note      ESC close
 ```
 
-### Self-hosting
-
-```bash
-git clone https://github.com/neur0map/tavrn.git
-cd tavrn
-JAMENDO_CLIENT_ID=your_key go run ./cmd/tavrn
-```
-
-Free API key from [devportal.jamendo.com](https://devportal.jamendo.com/).
-
 ### Contributing
 
 See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for development setup, branch workflow, and architecture.
