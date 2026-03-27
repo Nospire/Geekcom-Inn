@@ -51,11 +51,12 @@ type App struct {
 	gallery GalleryView
 
 	// Modal
-	modal         ModalType
-	helpModal     HelpModal
-	nickModal     NickModal
-	joinRoomModal JoinRoomModal
-	postModal     PostModal
+	modal           ModalType
+	helpModal       HelpModal
+	nickModal       NickModal
+	joinRoomModal   JoinRoomModal
+	postModal       PostModal
+	expandNoteModal ExpandNoteModal
 
 	// Transition animation
 	transSpring harmonica.Spring
@@ -186,6 +187,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		return a, nil
 
+	case GalleryExpandMsg:
+		isOwn := msg.Note.Fingerprint == a.session.Fingerprint
+		a.modal = ModalExpandNote
+		a.expandNoteModal = NewExpandNoteModal(
+			msg.Note.Text, msg.Note.Nickname, msg.Note.ColorIndex, isOwn, msg.Note.ID)
+		return a, nil
+
 	case GalleryDeleteMsg:
 		a.store.DeleteNote(msg.NoteID, a.session.Fingerprint)
 		a.gallery.RemoveNote(msg.NoteID)
@@ -290,7 +298,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, nil
 			}
 			// Forward d/delete/tab to gallery
-			if msg.String() == "d" || msg.String() == "delete" || msg.String() == "backspace" || msg.String() == "tab" {
+			if msg.String() == "d" || msg.String() == "delete" || msg.String() == "backspace" || msg.String() == "tab" || msg.String() == "e" {
 				var cmd tea.Cmd
 				a.gallery, cmd = a.gallery.Update(msg)
 				return a, cmd
@@ -355,6 +363,22 @@ func (a App) updateModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.postModal, cmd = a.postModal.Update(msg)
 		return a, cmd
+	case ModalExpandNote:
+		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+			if keyMsg.String() == "d" && a.expandNoteModal.IsOwn {
+				noteID := a.expandNoteModal.NoteID
+				a.modal = ModalNone
+				a.store.DeleteNote(noteID, a.session.Fingerprint)
+				a.gallery.RemoveNote(noteID)
+				a.onSend(session.Msg{
+					Type: session.MsgNoteDelete,
+					Room: "gallery",
+					Note: &session.NoteData{ID: noteID},
+				})
+				return a, nil
+			}
+		}
+		return a, nil
 	case ModalHelp:
 		// Help modal only responds to ESC (handled above)
 		return a, nil
@@ -648,6 +672,8 @@ func (a App) View() tea.View {
 			modalBox = a.joinRoomModal.View(a.width, a.height)
 		case ModalPost:
 			modalBox = a.postModal.View(a.width, a.height)
+		case ModalExpandNote:
+			modalBox = a.expandNoteModal.View(a.width, a.height)
 		}
 		base = Overlay(base, modalBox, a.width, a.height)
 	}

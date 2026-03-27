@@ -17,6 +17,7 @@ const (
 	ModalNick
 	ModalJoinRoom
 	ModalPost
+	ModalExpandNote
 )
 
 // CloseModalMsg signals modal should close.
@@ -400,4 +401,84 @@ func (p PostModal) View(width, height int) string {
 		BorderForeground(ColorBorder).
 		Padding(1, 2).
 		Render(b3.String())
+}
+
+// ─────────────────────────────────────
+// Expand Note Modal
+// ─────────────────────────────────────
+
+type ExpandNoteModal struct {
+	Text     string
+	Nickname string
+	ColorIdx int
+	IsOwn    bool
+	NoteID   int
+}
+
+func NewExpandNoteModal(text, nick string, colorIdx int, isOwn bool, noteID int) ExpandNoteModal {
+	return ExpandNoteModal{
+		Text:     text,
+		Nickname: nick,
+		ColorIdx: colorIdx,
+		IsOwn:    isOwn,
+		NoteID:   noteID,
+	}
+}
+
+func (e ExpandNoteModal) View(width, height int) string {
+	headerText := " Note "
+	fillLen := 44 - len(headerText)
+	if fillLen < 4 {
+		fillLen = 4
+	}
+	leftFill := strings.Repeat("╱", fillLen/2)
+	rightFill := strings.Repeat("╱", fillLen-fillLen/2)
+
+	borderColor := NickColors[e.ColorIdx%len(NickColors)]
+	headerFill := lipgloss.NewStyle().Foreground(ColorBorder).Render(leftFill)
+	headerTitle := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render(headerText)
+	headerFillR := lipgloss.NewStyle().Foreground(ColorBorder).Render(rightFill)
+
+	var b4 strings.Builder
+	b4.WriteString(headerFill + headerTitle + headerFillR)
+	b4.WriteString("\n\n")
+
+	// Nick header
+	nick := e.Nickname
+	if e.IsOwn {
+		nick = "~" + nick
+	}
+	nickStyled := lipgloss.NewStyle().Foreground(borderColor).Bold(true).Render(nick)
+	b4.WriteString("  " + nickStyled)
+	b4.WriteString("\n\n")
+
+	// Full text with word wrapping
+	wrapped := wordWrap(e.Text, 40)
+	for _, line := range wrapped {
+		b4.WriteString("  " + line + "\n")
+	}
+
+	// Footer
+	b4.WriteString("\n")
+	footerFill := lipgloss.NewStyle().Foreground(ColorBorder).Render(
+		strings.Repeat("╱", 44))
+	b4.WriteString(footerFill)
+	b4.WriteString("\n")
+
+	esc := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ESC")
+	footer := lipgloss.NewStyle().Foreground(ColorDim).Render(
+		fmt.Sprintf("  %s close", esc))
+
+	if e.IsOwn {
+		del := lipgloss.NewStyle().Foreground(lipgloss.Color("131")).Bold(true).Render("D")
+		footer += lipgloss.NewStyle().Foreground(ColorDim).Render(
+			fmt.Sprintf("  ·  %s delete", del))
+	}
+	b4.WriteString(footer)
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Padding(1, 2).
+		Render(b4.String())
 }

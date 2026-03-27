@@ -22,10 +22,10 @@ func (b BottomBar) View() string {
 	if b.IsGallery {
 		content = "  " +
 			k.Render("P") + " " + d.Render("post") + sep +
-			k.Render("J") + " " + d.Render("rooms") + sep +
+			k.Render("E") + " " + d.Render("expand") + sep +
 			k.Render("D") + " " + d.Render("delete") + sep +
 			k.Render("TAB") + " " + d.Render("select") + sep +
-			k.Render("H") + " " + d.Render("help")
+			k.Render("J") + " " + d.Render("rooms")
 	} else {
 		content = "  " +
 			k.Render("F1") + " " + d.Render("help") + sep +

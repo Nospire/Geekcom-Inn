@@ -110,6 +110,13 @@ func (g GalleryView) Update(msg tea.Msg) (GalleryView, tea.Cmd) {
 					}
 				}
 			}
+		case "e":
+			if g.selected >= 0 && g.selected < len(g.notes) {
+				note := g.notes[g.selected]
+				return g, func() tea.Msg {
+					return GalleryExpandMsg{Note: note}
+				}
+			}
 		case "tab":
 			if len(g.notes) > 0 {
 				g.selected = (g.selected + 1) % len(g.notes)
@@ -255,8 +262,16 @@ func (g GalleryView) renderCard(note GalleryNote, selected, isOwn bool) string {
 			BorderForeground(ColorHighlight)
 	}
 
-	// Content: text + separator + nick
+	// Content: text + separator + nick + expand button
 	text := note.Text
+	// Truncate display text for card
+	displayText := text
+	truncated := false
+	if len(displayText) > 40 {
+		displayText = displayText[:37] + "..."
+		truncated = true
+	}
+
 	nickLine := lipgloss.NewStyle().
 		Foreground(NickColors[note.ColorIndex%len(NickColors)]).
 		Bold(true).
@@ -266,7 +281,14 @@ func (g GalleryView) renderCard(note GalleryNote, selected, isOwn bool) string {
 		Foreground(lipgloss.Color("238")).
 		Render(strings.Repeat("─", cardWidth-6))
 
-	content := text + "\n" + sep + "\n" + nickLine
+	expandBtn := ""
+	if selected || truncated {
+		expandBtn = "\n" + lipgloss.NewStyle().
+			Foreground(ColorHighlight).
+			Render("[ E expand ]")
+	}
+
+	content := displayText + "\n" + sep + "\n" + nickLine + expandBtn
 
 	return style.Render(content)
 }
@@ -281,3 +303,4 @@ func (g GalleryView) noteSize(text string) (int, int) {
 
 type GalleryDeleteMsg struct{ NoteID int }
 type GalleryMoveMsg struct{ NoteID, X, Y int }
+type GalleryExpandMsg struct{ Note GalleryNote }
