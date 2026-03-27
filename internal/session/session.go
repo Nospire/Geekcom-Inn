@@ -14,7 +14,19 @@ const (
 	MsgUserLeft
 	MsgPurge
 	MsgTyping
+	MsgNoteCreate
+	MsgNoteMove
+	MsgNoteDelete
 )
+
+// NoteData carries sticky note info through the hub.
+type NoteData struct {
+	ID    int
+	X, Y  int
+	Text  string
+	Nick  string
+	Color int
+}
 
 // Msg is a message sent from the hub to a session.
 type Msg struct {
@@ -24,6 +36,7 @@ type Msg struct {
 	ColorIndex  int
 	Text        string
 	Room        string
+	Note        *NoteData
 }
 
 // Session represents a connected user.

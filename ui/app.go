@@ -47,6 +47,9 @@ type App struct {
 	onSend         func(session.Msg)
 	lastTypingSent time.Time
 
+	// Gallery
+	gallery GalleryView
+
 	// Modal
 	modal         ModalType
 	helpModal     HelpModal
@@ -69,6 +72,7 @@ func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, adm *admin.Admin
 		bottomBar: NewBottomBar(),
 		rooms:     NewRoomsPanel(),
 		online:    NewOnlinePanel(),
+		gallery:   NewGalleryView(sess.Fingerprint),
 		store:     st,
 		hub:       h,
 		admin:     adm,
@@ -148,6 +152,25 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.switchRoom(msg.Room)
 		}
 		return a, nil
+
+	case GalleryDeleteMsg:
+		a.store.DeleteNote(msg.NoteID, a.session.Fingerprint)
+		a.gallery.RemoveNote(msg.NoteID)
+		a.onSend(session.Msg{
+			Type: session.MsgNoteDelete,
+			Room: "gallery",
+			Note: &session.NoteData{ID: msg.NoteID},
+		})
+		return a, nil
+
+	case GalleryMoveMsg:
+		a.store.MoveNote(msg.NoteID, msg.X, msg.Y, a.session.Fingerprint)
+		a.onSend(session.Msg{
+			Type: session.MsgNoteMove,
+			Room: "gallery",
+			Note: &session.NoteData{ID: msg.NoteID, X: msg.X, Y: msg.Y},
+		})
+		return a, nil
 	}
 
 	// Splash state — handle keys directly (tick/resize handled above)
@@ -175,7 +198,34 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.updateModal(msg)
 	}
 
-	// Tavern state
+	// Gallery room: route mouse events to gallery, keys to input for /post
+	if a.session.Room == "gallery" {
+		switch msg := msg.(type) {
+		case tea.KeyPressMsg:
+			switch msg.String() {
+			case "ctrl+c":
+				return a, tea.Quit
+			case "enter":
+				return a.handleInput()
+			}
+			// Forward d/delete/tab to gallery
+			if msg.String() == "d" || msg.String() == "delete" || msg.String() == "backspace" || msg.String() == "tab" {
+				var cmd tea.Cmd
+				a.gallery, cmd = a.gallery.Update(msg)
+				return a, cmd
+			}
+		case tea.MouseClickMsg, tea.MouseReleaseMsg, tea.MouseMotionMsg:
+			var cmd tea.Cmd
+			a.gallery, cmd = a.gallery.Update(msg)
+			return a, cmd
+		}
+		// Text input still works for /post command
+		var cmd tea.Cmd
+		a.chat, cmd = a.chat.Update(msg)
+		return a, cmd
+	}
+
+	// Normal chat rooms
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
@@ -186,7 +236,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			return a, nil
 		default:
-			// Typing notification (throttled)
 			if time.Since(a.lastTypingSent) > 2*time.Second && a.chat.HasInput() {
 				a.lastTypingSent = time.Now()
 				a.onSend(session.Msg{
@@ -330,6 +379,42 @@ func (a *App) handleCommand(parsed chat.ParseResult) {
 		a.modal = ModalJoinRoom
 		a.joinRoomModal = NewJoinRoomModal(room.All, counts, a.session.Room)
 
+	case "post":
+		if a.session.Room != "gallery" {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
+				"You can only /post in #gallery. Use /join gallery first."))
+			return
+		}
+		text := strings.TrimSpace(parsed.Args)
+		if text == "" {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Usage: /post <message>"))
+			return
+		}
+		if len(text) > 60 {
+			text = text[:60]
+		}
+		x, y := a.gallery.RandomPosition()
+		noteID, err := a.store.CreateNote(x, y, text, a.session.Fingerprint, a.session.Nickname, a.session.ColorIndex)
+		if err != nil {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Error creating note."))
+			return
+		}
+		note := GalleryNote{
+			ID: noteID, X: x, Y: y,
+			Text: text, Nickname: a.session.Nickname,
+			Fingerprint: a.session.Fingerprint, ColorIndex: a.session.ColorIndex,
+		}
+		a.gallery.AddNote(note)
+		a.onSend(session.Msg{
+			Type: session.MsgNoteCreate,
+			Room: "gallery",
+			Note: &session.NoteData{
+				ID: noteID, X: x, Y: y,
+				Text: text, Nick: a.session.Nickname, Color: a.session.ColorIndex,
+			},
+			Fingerprint: a.session.Fingerprint,
+		})
+
 	case "ban", "unban", "purge":
 		if !a.session.IsAdmin {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
@@ -373,6 +458,22 @@ func (a *App) handleHubMsg(msg session.Msg) {
 		if msg.Nickname != a.session.Nickname {
 			a.chat.SetTyping(msg.Nickname)
 		}
+	case session.MsgNoteCreate:
+		if msg.Note != nil && msg.Fingerprint != a.session.Fingerprint {
+			a.gallery.AddNote(GalleryNote{
+				ID: msg.Note.ID, X: msg.Note.X, Y: msg.Note.Y,
+				Text: msg.Note.Text, Nickname: msg.Note.Nick,
+				Fingerprint: msg.Fingerprint, ColorIndex: msg.Note.Color,
+			})
+		}
+	case session.MsgNoteMove:
+		if msg.Note != nil {
+			a.gallery.MoveNote(msg.Note.ID, msg.Note.X, msg.Note.Y)
+		}
+	case session.MsgNoteDelete:
+		if msg.Note != nil {
+			a.gallery.RemoveNote(msg.Note.ID)
+		}
 	}
 }
 
@@ -389,25 +490,33 @@ func (a *App) switchRoom(target string) {
 	// Switch
 	a.session.Room = target
 
-	// Clear chat and load history for new room
+	// Clear and load new room content
 	a.chat = NewChatView()
 	a.doLayout()
 
-	history, _ := a.store.RecentMessages(target, 50)
-	for _, m := range history {
-		msg := chat.Message{
-			Nickname:   m.Nickname,
-			ColorIndex: m.ColorIndex,
-			Text:       m.Text,
-			Room:       m.Room,
-			Timestamp:  m.CreatedAt,
-			IsSystem:   m.IsSystem,
+	if target == "gallery" {
+		// Load gallery notes
+		notes, _ := a.store.AllNotes()
+		a.gallery = NewGalleryView(a.session.Fingerprint)
+		a.gallery.SetSize(a.width, a.height-5) // account for top/bottom bars
+		a.gallery.LoadNotes(notes)
+	} else {
+		// Load chat history
+		history, _ := a.store.RecentMessages(target, 50)
+		for _, m := range history {
+			msg := chat.Message{
+				Nickname:   m.Nickname,
+				ColorIndex: m.ColorIndex,
+				Text:       m.Text,
+				Room:       m.Room,
+				Timestamp:  m.CreatedAt,
+				IsSystem:   m.IsSystem,
+			}
+			a.chat.AddMessage(msg)
 		}
-		a.chat.AddMessage(msg)
+		a.chat.AddMessage(chat.NewSystemMessage(target,
+			fmt.Sprintf("You joined #%s", target)))
 	}
-
-	a.chat.AddMessage(chat.NewSystemMessage(target,
-		fmt.Sprintf("You joined #%s", target)))
 
 	// Announce join in new room
 	a.onSend(session.Msg{
@@ -455,6 +564,7 @@ func (a *App) doLayout() {
 	a.online.Width = onlineWidth
 	a.online.Height = mainHeight
 	a.chat.SetSize(chatWidth, mainHeight)
+	a.gallery.SetSize(chatWidth, mainHeight)
 }
 
 func (a App) View() tea.View {
@@ -494,21 +604,26 @@ func (a App) View() tea.View {
 	a.rooms.Rooms = roomInfos
 
 	topBar := a.topBar.View()
-	chatView := a.chat.View()
 	bottomBar := a.bottomBar.View()
+
+	// Main content: gallery board or chat depending on room
+	var centerView string
+	if a.session.Room == "gallery" {
+		centerView = a.gallery.View()
+	} else {
+		centerView = a.chat.View()
+	}
 
 	var mainArea string
 	if a.rooms.Width > 0 && a.online.Width > 0 {
-		// 3-column: rooms | chat | online
 		roomsView := a.rooms.View()
 		onlineView := a.online.View()
-		mainArea = lipgloss.JoinHorizontal(lipgloss.Top, roomsView, chatView, onlineView)
+		mainArea = lipgloss.JoinHorizontal(lipgloss.Top, roomsView, centerView, onlineView)
 	} else if a.rooms.Width > 0 {
-		// 2-column: rooms | chat
 		roomsView := a.rooms.View()
-		mainArea = lipgloss.JoinHorizontal(lipgloss.Top, roomsView, chatView)
+		mainArea = lipgloss.JoinHorizontal(lipgloss.Top, roomsView, centerView)
 	} else {
-		mainArea = chatView
+		mainArea = centerView
 	}
 
 	base := lipgloss.JoinVertical(lipgloss.Left, topBar, mainArea, bottomBar)

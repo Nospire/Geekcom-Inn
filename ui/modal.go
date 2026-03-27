@@ -67,6 +67,7 @@ func (h HelpModal) View(width, height int) string {
 		{"/join ROOM", "switch rooms"},
 		{"/nick NAME", "change your handle"},
 		{"/who", "see who's around"},
+		{"/post MSG", "sticky note (#gallery)"},
 		{"/help", "show this card"},
 	}
 	for _, c := range cmds {

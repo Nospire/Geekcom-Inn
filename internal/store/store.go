@@ -70,6 +70,16 @@ func (s *Store) migrate() error {
 		created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE INDEX IF NOT EXISTS idx_chat_room_created ON chat_messages(room, created_at);
+	CREATE TABLE IF NOT EXISTS gallery_notes (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		x           INTEGER DEFAULT 0,
+		y           INTEGER DEFAULT 0,
+		text        TEXT NOT NULL,
+		fingerprint TEXT NOT NULL,
+		nickname    TEXT NOT NULL,
+		color_index INTEGER DEFAULT 0,
+		created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
 	`
 	_, err := s.db.Exec(schema)
 	return err
@@ -229,6 +239,77 @@ func (s *Store) RecentMessages(room string, limit int) ([]ChatRow, error) {
 	return msgs, nil
 }
 
+// ── Gallery Notes ──
+
+type NoteRow struct {
+	ID          int
+	X, Y        int
+	Text        string
+	Fingerprint string
+	Nickname    string
+	ColorIndex  int
+	CreatedAt   time.Time
+}
+
+func (s *Store) CreateNote(x, y int, text, fingerprint, nickname string, colorIndex int) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	res, err := s.db.Exec(`
+		INSERT INTO gallery_notes (x, y, text, fingerprint, nickname, color_index)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, x, y, text, fingerprint, nickname, colorIndex)
+	if err != nil {
+		return 0, err
+	}
+	id, _ := res.LastInsertId()
+	return int(id), nil
+}
+
+func (s *Store) MoveNote(id, x, y int, fingerprint string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`UPDATE gallery_notes SET x = ?, y = ? WHERE id = ? AND fingerprint = ?`,
+		x, y, id, fingerprint)
+	return err
+}
+
+func (s *Store) DeleteNote(id int, fingerprint string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`DELETE FROM gallery_notes WHERE id = ? AND fingerprint = ?`,
+		id, fingerprint)
+	return err
+}
+
+func (s *Store) AllNotes() ([]NoteRow, error) {
+	rows, err := s.db.Query(`
+		SELECT id, x, y, text, fingerprint, nickname, color_index, created_at
+		FROM gallery_notes ORDER BY created_at ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var notes []NoteRow
+	for rows.Next() {
+		var n NoteRow
+		var ts string
+		if err := rows.Scan(&n.ID, &n.X, &n.Y, &n.Text, &n.Fingerprint, &n.Nickname, &n.ColorIndex, &ts); err != nil {
+			continue
+		}
+		n.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", ts)
+		notes = append(notes, n)
+	}
+	return notes, nil
+}
+
+func (s *Store) ClearGallery() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`DELETE FROM gallery_notes`)
+	return err
+}
+
 func (s *Store) PurgeAll() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -240,5 +321,6 @@ func (s *Store) PurgeAll() error {
 	tx.Exec(`DELETE FROM users`)
 	tx.Exec(`DELETE FROM weekly_visitors`)
 	tx.Exec(`DELETE FROM chat_messages`)
+	tx.Exec(`DELETE FROM gallery_notes`)
 	return tx.Commit()
 }
