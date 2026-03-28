@@ -5,6 +5,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -161,11 +165,7 @@ func (s *Streamer) downloadAndBroadcast(ctx context.Context, track Track) {
 		return
 	}
 
-	// Estimate actual duration from file size (MP3 ~128kbps = 16000 bytes/sec)
-	estimatedDuration := len(audio) / 16000
-	if estimatedDuration < 10 {
-		estimatedDuration = 10
-	}
+	estimatedDuration := estimateMP3Duration(audio)
 	log.Printf("streamer: downloaded %d bytes (~%ds), broadcasting to %d conns",
 		len(audio), estimatedDuration, s.ConnCount())
 
@@ -204,11 +204,7 @@ func (s *Streamer) downloadAndBroadcast(ctx context.Context, track Track) {
 }
 
 func (s *Streamer) broadcastAudio(track Track, audio []byte) {
-	// Estimate actual duration from file size (MP3 ~128kbps = 16000 bytes/sec)
-	estimatedDuration := len(audio) / 16000
-	if estimatedDuration < 10 {
-		estimatedDuration = 10
-	}
+	estimatedDuration := estimateMP3Duration(audio)
 	log.Printf("streamer: received %d bytes (~%ds), broadcasting to %d conns",
 		len(audio), estimatedDuration, s.ConnCount())
 
@@ -257,4 +253,50 @@ func (s *Streamer) sendTrack(conn io.WriteCloser, track Track, audio []byte) err
 		return err
 	}
 	return nil
+}
+
+// estimateMP3Duration returns the duration in seconds.
+// Uses ffprobe if available for accuracy, otherwise estimates from file size.
+func estimateMP3Duration(data []byte) int {
+	if _, err := exec.LookPath("ffprobe"); err == nil {
+		if dur := ffprobeDuration(data); dur > 0 {
+			return dur
+		}
+	}
+	// Fallback: assume ~176kbps (typical for chillhop streams)
+	dur := len(data) / 22000
+	if dur < 10 {
+		dur = 10
+	}
+	return dur
+}
+
+func ffprobeDuration(data []byte) int {
+	tmp, err := os.CreateTemp("", "tavrn-probe-*.mp3")
+	if err != nil {
+		return 0
+	}
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+
+	if _, err := tmp.Write(data); err != nil {
+		return 0
+	}
+	tmp.Close()
+
+	out, err := exec.Command("ffprobe",
+		"-v", "quiet",
+		"-show_entries", "format=duration",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		tmp.Name(),
+	).Output()
+	if err != nil {
+		return 0
+	}
+
+	f, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+	if err != nil {
+		return 0
+	}
+	return int(f)
 }

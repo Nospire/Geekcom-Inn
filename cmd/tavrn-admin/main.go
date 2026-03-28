@@ -149,7 +149,7 @@ func runServer() {
 	jukeboxEngine.SetOnTrackChange(func(track jukebox.Track) {
 		if track.Source == "youtube" && ytBackend != nil {
 			// Download and convert to MP3 via yt-dlp
-			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 			defer cancel()
 			audio, err := ytBackend.DownloadMP3(ctx, track.ID)
 			if err != nil {

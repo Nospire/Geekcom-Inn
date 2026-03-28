@@ -71,8 +71,8 @@ func (y *YouTube) Search(ctx context.Context, query string, limit int) ([]Track,
 		if r.Duration != nil {
 			dur = int(*r.Duration)
 		}
-		// Skip livestreams (no duration) and very long videos (>15 min)
-		if dur == 0 || dur > 900 {
+		// Skip livestreams (no duration) and long videos (>7 min)
+		if dur == 0 || dur > 420 {
 			continue
 		}
 		tracks = append(tracks, Track{
