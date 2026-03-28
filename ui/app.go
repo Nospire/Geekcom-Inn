@@ -245,6 +245,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.doLayout()
 				a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
 					"Welcome to the tavern. Type /help for commands."))
+				if banner := a.store.GetBanner(); banner != "" {
+					a.chat.AddMessage(chat.NewBannerMessage(a.session.Room, banner))
+				}
 				return a, nil
 			case "q", "ctrl+c":
 				return a, tea.Quit

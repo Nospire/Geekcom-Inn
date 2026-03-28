@@ -178,7 +178,7 @@ func runServer() {
 
 	go startPurgeScheduler(st, h)
 	go startGalleryCleanup(st, h)
-	go watchBannerFile(h)
+	go watchBannerFile(st, h)
 	go watchAddRoomFile(st, h)
 	go watchPurgeFile(h)
 
@@ -428,7 +428,7 @@ func startGalleryCleanup(st *store.Store, h *hub.Hub) {
 	}
 }
 
-func watchBannerFile(h *hub.Hub) {
+func watchBannerFile(st *store.Store, h *hub.Hub) {
 	for {
 		time.Sleep(1 * time.Second)
 
@@ -445,6 +445,7 @@ func watchBannerFile(h *hub.Hub) {
 		os.Remove(bannerFile)
 
 		log.Printf("Broadcasting banner: %s", text)
+		st.SetBanner(text)
 		h.BroadcastAll(session.Msg{
 			Type: session.MsgBanner,
 			Text: text,

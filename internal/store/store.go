@@ -88,6 +88,11 @@ func (s *Store) migrate() error {
 		fingerprint TEXT PRIMARY KEY,
 		nickname    TEXT NOT NULL
 	);
+	CREATE TABLE IF NOT EXISTS banner (
+		id         INTEGER PRIMARY KEY CHECK (id = 1),
+		text       TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
 	`
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
@@ -402,9 +407,32 @@ func (s *Store) PurgeAll() error {
 	tx.Exec(`DELETE FROM weekly_visitors`)
 	tx.Exec(`DELETE FROM chat_messages`)
 	tx.Exec(`DELETE FROM gallery_notes`)
+	tx.Exec(`DELETE FROM banner`)
 	if err := tx.Commit(); err != nil {
 		return err
 	}
 	s.restoreOwners()
 	return nil
+}
+
+func (s *Store) SetBanner(text string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`INSERT INTO banner (id, text) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET text = ?, created_at = CURRENT_TIMESTAMP`, text, text)
+	return err
+}
+
+func (s *Store) GetBanner() string {
+	row := s.db.QueryRow(`SELECT text FROM banner WHERE id = 1`)
+	var text string
+	if err := row.Scan(&text); err != nil {
+		return ""
+	}
+	return text
+}
+
+func (s *Store) ClearBanner() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.db.Exec(`DELETE FROM banner`)
 }
