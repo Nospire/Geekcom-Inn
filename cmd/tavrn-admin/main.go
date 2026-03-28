@@ -135,6 +135,9 @@ func runServer() {
 		jukeboxEngine.UpdateDuration(seconds)
 	})
 	jukeboxEngine.SetOnTrackChange(func(track jukebox.Track) {
+		// Close all audio connections to interrupt current playback.
+		// Clients reconnect automatically and get the new track.
+		streamer.CloseAllConns()
 		streamer.StreamTrack(track)
 	})
 

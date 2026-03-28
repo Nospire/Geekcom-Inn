@@ -90,6 +90,17 @@ func (s *Streamer) ConnCount() int {
 	return len(s.conns)
 }
 
+// CloseAllConns closes all audio connections, forcing clients to reconnect.
+// Used on skip to interrupt current playback.
+func (s *Streamer) CloseAllConns() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for conn := range s.conns {
+		conn.Close()
+		delete(s.conns, conn)
+	}
+}
+
 // StreamTrack downloads the track and sends it to all connected clients.
 func (s *Streamer) StreamTrack(track Track) {
 	s.mu.Lock()
