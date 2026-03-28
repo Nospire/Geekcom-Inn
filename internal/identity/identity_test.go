@@ -1,6 +1,9 @@
 package identity
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDefaultNickname(t *testing.T) {
 	fp := "SHA256:abc123def456"
@@ -15,6 +18,14 @@ func TestDefaultNickname(t *testing.T) {
 	// Should contain underscore (adj_noun format)
 	if !contains(n1, "_") {
 		t.Errorf("expected adj_noun format, got %q", n1)
+	}
+	// Should contain #XXXX discriminator
+	if !strings.Contains(n1, "#") {
+		t.Errorf("expected #XXXX discriminator, got %q", n1)
+	}
+	parts := strings.SplitN(n1, "#", 2)
+	if len(parts) != 2 || len(parts[1]) != 4 {
+		t.Errorf("discriminator should be 4 digits, got %q", n1)
 	}
 }
 

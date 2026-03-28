@@ -2,12 +2,14 @@ package identity
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 )
 
-// DefaultNickname returns a tavern-themed name from the fingerprint.
+// DefaultNickname returns a tavern-themed name with a unique discriminator.
+// Format: adjective_noun#0000 (e.g. "dusty_pilgrim#4827")
 func DefaultNickname(fingerprint string) string {
 	hash := sha256.Sum256([]byte(fingerprint))
-	idx := int(hash[0])
 
 	adjectives := []string{
 		"dusty", "quiet", "wandering", "sleepy", "hooded",
@@ -22,9 +24,10 @@ func DefaultNickname(fingerprint string) string {
 		"brewer", "hermit", "jester", "rider", "ghost",
 	}
 
-	adj := adjectives[idx%len(adjectives)]
+	adj := adjectives[int(hash[0])%len(adjectives)]
 	noun := nouns[int(hash[1])%len(nouns)]
-	return adj + "_" + noun
+	disc := binary.BigEndian.Uint16(hash[2:4]) % 10000
+	return fmt.Sprintf("%s_%s#%04d", adj, noun, disc)
 }
 
 // ColorIndex returns 0-11 for mapping a fingerprint to one of 12 cantina colors.
