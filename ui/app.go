@@ -494,6 +494,8 @@ func (a *App) handleHubMsg(msg session.Msg) {
 	case session.MsgSystem, session.MsgUserJoined, session.MsgUserLeft:
 		a.chat.AddMessage(chat.NewSystemMessage(msg.Room, msg.Text))
 	case session.MsgPurge:
+		a.chat = NewChatView()
+		a.doLayout()
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
 			"The tavern has been swept clean."))
 	case session.MsgTyping:

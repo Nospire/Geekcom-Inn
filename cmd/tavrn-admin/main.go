@@ -23,6 +23,7 @@ import (
 
 const bannerFile = ".banner"
 const addRoomFile = ".addroom"
+const purgeFile = ".purge"
 
 func main() {
 	if len(os.Args) > 1 {
@@ -109,6 +110,8 @@ func runPurge() {
 	if err := st.PurgeAll(); err != nil {
 		log.Fatalf("purge failed: %v", err)
 	}
+	// Signal running server to broadcast purge to connected clients
+	os.WriteFile(".purge", []byte("1"), 0600)
 	fmt.Println("Done. All data purged.")
 }
 
@@ -163,6 +166,7 @@ func runServer() {
 	go startGalleryCleanup(st, h)
 	go watchBannerFile(h)
 	go watchAddRoomFile(st, h)
+	go watchPurgeFile(h)
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGTERM)
@@ -450,6 +454,23 @@ func watchAddRoomFile(st *store.Store, h *hub.Hub) {
 		h.BroadcastAll(session.Msg{
 			Type: session.MsgRoomAdded,
 			Text: name,
+		})
+	}
+}
+
+func watchPurgeFile(h *hub.Hub) {
+	for {
+		time.Sleep(1 * time.Second)
+
+		if _, err := os.ReadFile(purgeFile); err != nil {
+			continue
+		}
+
+		os.Remove(purgeFile)
+
+		log.Println("Manual purge signal received, broadcasting to clients")
+		h.BroadcastAll(session.Msg{
+			Type: session.MsgPurge,
 		})
 	}
 }

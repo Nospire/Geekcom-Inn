@@ -9,4 +9,5 @@ docs/superpowers/
 .worktrees/
 .banner
 .addroom
+.purge
 .env
