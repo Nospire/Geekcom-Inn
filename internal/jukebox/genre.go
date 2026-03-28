@@ -5,7 +5,7 @@ package jukebox
 type Genre int
 
 const (
-	GenreLofi       Genre = iota
+	GenreLofi Genre = iota
 	GenreJazz
 	GenreElectronic
 	GenreCantina
