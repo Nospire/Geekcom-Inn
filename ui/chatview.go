@@ -245,18 +245,27 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 	// Route scroll keys to viewport
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		switch keyMsg.String() {
-		case "pgup", "pgdown", "shift+up", "shift+down", "home", "end":
+		case "pgup", "pgdown", "home", "end":
 			c.viewport, cmd = c.viewport.Update(msg)
 			cmds = append(cmds, cmd)
 			return c, tea.Batch(cmds...)
+		case "shift+up", "up":
+			c.viewport.ScrollUp(3)
+			return c, nil
+		case "shift+down", "down":
+			c.viewport.ScrollDown(3)
+			return c, nil
 		}
 	}
 
 	// Route mouse wheel to viewport
-	if _, ok := msg.(tea.MouseWheelMsg); ok {
-		c.viewport, cmd = c.viewport.Update(msg)
-		cmds = append(cmds, cmd)
-		return c, tea.Batch(cmds...)
+	if m, ok := msg.(tea.MouseWheelMsg); ok {
+		if m.Button == tea.MouseWheelUp {
+			c.viewport.ScrollUp(3)
+		} else if m.Button == tea.MouseWheelDown {
+			c.viewport.ScrollDown(3)
+		}
+		return c, nil
 	}
 
 	c.input, cmd = c.input.Update(msg)

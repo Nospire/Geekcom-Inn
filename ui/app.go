@@ -731,9 +731,7 @@ func (a App) View() tea.View {
 
 	v := tea.NewView(base)
 	v.AltScreen = true
-	if a.session.Room == "gallery" {
-		v.MouseMode = tea.MouseModeCellMotion
-	}
+	v.MouseMode = tea.MouseModeCellMotion
 	v.WindowTitle = "tavrn.sh"
 	return v
 }
