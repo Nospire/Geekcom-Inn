@@ -48,6 +48,11 @@ func TestEngineVoteSkipInstant(t *testing.T) {
 	e.SetOnlineCount(func() int { return 3 }) // <= 5, threshold = 1
 	e.tick()
 
+	// Move playStart back to bypass debounce
+	e.mu.Lock()
+	e.playStart = time.Now().Add(-3 * time.Second)
+	e.mu.Unlock()
+
 	skipped := e.VoteSkip("user1")
 	if !skipped {
 		t.Error("expected instant skip with <= 5 online")
@@ -58,6 +63,10 @@ func TestEngineVoteSkipThreshold(t *testing.T) {
 	e := NewEngine(NewLofi())
 	e.SetOnlineCount(func() int { return 10 }) // threshold = 3 + (10-6)/10 = 3
 	e.tick()
+
+	e.mu.Lock()
+	e.playStart = time.Now().Add(-3 * time.Second)
+	e.mu.Unlock()
 
 	if e.VoteSkip("user1") {
 		t.Error("should not skip with 1/3 votes")
@@ -75,6 +84,10 @@ func TestEngineVoteSkipDeduplicate(t *testing.T) {
 	e.SetOnlineCount(func() int { return 10 })
 	e.tick()
 
+	e.mu.Lock()
+	e.playStart = time.Now().Add(-3 * time.Second)
+	e.mu.Unlock()
+
 	e.VoteSkip("user1")
 	e.VoteSkip("user1") // duplicate
 	e.VoteSkip("user1") // duplicate
@@ -82,6 +95,18 @@ func TestEngineVoteSkipDeduplicate(t *testing.T) {
 	state := e.State()
 	if state.SkipVotes != 1 {
 		t.Errorf("expected 1 vote after dedup, got %d", state.SkipVotes)
+	}
+}
+
+func TestEngineVoteSkipDebounce(t *testing.T) {
+	e := NewEngine(NewLofi())
+	e.SetOnlineCount(func() int { return 3 })
+	e.tick()
+
+	// Skip should be rejected within 2 seconds of track start
+	skipped := e.VoteSkip("user1")
+	if skipped {
+		t.Error("expected skip to be debounced within 2 seconds")
 	}
 }
 
@@ -102,6 +127,10 @@ func TestEngineUserSkipped(t *testing.T) {
 	e := NewEngine(NewLofi())
 	e.SetOnlineCount(func() int { return 20 })
 	e.tick()
+
+	e.mu.Lock()
+	e.playStart = time.Now().Add(-3 * time.Second)
+	e.mu.Unlock()
 
 	if e.UserSkipped("user1") {
 		t.Error("user1 should not have voted yet")
