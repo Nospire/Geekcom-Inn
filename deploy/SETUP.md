@@ -53,21 +53,7 @@ su - tavrn -c "
 
 ---
 
-## 5. Create the environment file (secrets)
-
-As the `tavrn` user (or root writing to `/home/tavrn/tavrn/.env`):
-
-```bash
-cat > /home/tavrn/tavrn/.env <<'EOF'
-JAMENDO_CLIENT_ID=your_jamendo_id_here
-EOF
-chmod 600 /home/tavrn/tavrn/.env
-chown tavrn:tavrn /home/tavrn/tavrn/.env
-```
-
----
-
-## 6. Build the server binary
+## 5. Build the server binary
 
 ```bash
 su - tavrn -c "
@@ -80,7 +66,7 @@ su - tavrn -c "
 
 ---
 
-## 7. Install deploy assets
+## 6. Install deploy assets
 
 Copy each file from this `deploy/` directory into its system location.
 
@@ -126,7 +112,7 @@ chown -R caddy:caddy /var/www/tavrn
 
 ---
 
-## 8. Run the finalize script to set capabilities and symlinks
+## 7. Run the finalize script to set capabilities and symlinks
 
 ```bash
 /usr/local/sbin/tavrn-finalize-update
@@ -137,7 +123,7 @@ This sets `cap_net_bind_service` on the binary, creates `/usr/local/bin/tavrn` a
 
 ---
 
-## 9. SSH hardening — move admin shell to port 2222
+## 8. SSH hardening — move admin shell to port 2222
 
 Edit `/etc/ssh/sshd_config`:
 
