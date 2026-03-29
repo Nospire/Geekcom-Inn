@@ -14,7 +14,6 @@ import (
 	"tavrn.sh/internal/chat"
 	"tavrn.sh/internal/hub"
 	"tavrn.sh/internal/identity"
-	"tavrn.sh/internal/jukebox"
 	"tavrn.sh/internal/sanitize"
 	"tavrn.sh/internal/session"
 	"tavrn.sh/internal/store"
@@ -36,7 +35,6 @@ const (
 	splashTickInterval     = 150 * time.Millisecond
 	transitionTickInterval = time.Second / 30
 	typingTickInterval     = 250 * time.Millisecond
-	musicTickInterval      = 500 * time.Millisecond
 	idleTickInterval       = 2 * time.Second
 )
 
@@ -67,10 +65,6 @@ type App struct {
 	postModal       PostModal
 	expandNoteModal ExpandNoteModal
 
-	// Jukebox
-	jukeboxModal  JukeboxModal
-	jukeboxEngine *jukebox.Engine
-
 	// Sudoku
 	sudokuView *SudokuView
 	sudokuGame *sudoku.Game
@@ -81,7 +75,7 @@ type App struct {
 	transVel    float64
 }
 
-func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(session.Msg), engine *jukebox.Engine, game *sudoku.Game) App {
+func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(session.Msg), game *sudoku.Game) App {
 	return App{
 		state:         stateSplash,
 		splash:        NewSplash(sess.Nickname, sess.Fingerprint, sess.Flair),
@@ -95,9 +89,8 @@ func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(sess
 		store:         st,
 		hub:           h,
 		onSend:        onSend,
-		modal:         ModalNone,
-		jukeboxEngine: engine,
-		sudokuGame:    game,
+		modal:      ModalNone,
+		sudokuGame: game,
 	}
 }
 
@@ -138,9 +131,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tickMsg:
-		if a.hasActiveTrack() {
-			a.topBar.Frame++
-		}
 		if a.hub.OnlineCount() > 0 {
 			a.online.Frame++
 		}
@@ -289,10 +279,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.modal = ModalJoinRoom
 			a.joinRoomModal = NewJoinRoomModal(allRooms, counts, a.session.Room)
 			return a, nil
-		case "f4":
-			a.modal = ModalJukebox
-			a.jukeboxModal = NewJukeboxModal(a.jukeboxEngine, a.session.Fingerprint)
-			return a, nil
 		case "f5":
 			a.modal = ModalPost
 			a.postModal = NewPostModal()
@@ -427,10 +413,6 @@ func (a App) updateModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch a.modal {
-	case ModalJukebox:
-		var cmd tea.Cmd
-		a.jukeboxModal, cmd = a.jukeboxModal.Update(msg)
-		return a, cmd
 	case ModalNick:
 		var cmd tea.Cmd
 		a.nickModal, cmd = a.nickModal.Update(msg)
@@ -733,26 +715,6 @@ func (a App) View() tea.View {
 	}
 	a.rooms.Rooms = roomInfos
 
-	if a.jukeboxEngine != nil {
-		jstate := a.jukeboxEngine.State()
-		if jstate.Current != nil {
-			a.topBar.HasTrack = true
-			a.topBar.NowTitle = jstate.Current.Title
-			a.topBar.NowArtist = jstate.Current.Artist
-			a.topBar.NowDuration = jstate.Current.DurationTime()
-			a.topBar.NowPosition = jstate.Position
-			a.online.NowTitle = jstate.Current.Title
-		} else {
-			a.topBar.HasTrack = false
-			a.online.NowTitle = ""
-		}
-		if jstate.PendingGenre != jstate.ActiveGenre {
-			a.online.GenreSwitching = jstate.PendingGenre.String()
-		} else {
-			a.online.GenreSwitching = ""
-		}
-	}
-
 	topBar := a.topBar.View()
 	bottomBar := a.bottomBar.View()
 
@@ -794,8 +756,6 @@ func (a App) View() tea.View {
 			modalBox = a.postModal.View(a.width, a.height)
 		case ModalExpandNote:
 			modalBox = a.expandNoteModal.View(a.width, a.height)
-		case ModalJukebox:
-			modalBox = a.jukeboxModal.View(a.width, a.height)
 		}
 		base = Overlay(base, modalBox, a.width, a.height)
 	}
@@ -822,17 +782,10 @@ func (a App) nextTickInterval() time.Duration {
 	if a.chat.HasTypingUsers() {
 		return typingTickInterval
 	}
-	if a.hasActiveTrack() || a.chat.HasActiveLogs() {
-		return musicTickInterval
+	if a.chat.HasActiveLogs() {
+		return typingTickInterval
 	}
 	return idleTickInterval
-}
-
-func (a App) hasActiveTrack() bool {
-	if a.jukeboxEngine == nil {
-		return false
-	}
-	return a.jukeboxEngine.State().Current != nil
 }
 
 // renderTransition applies a spring-animated top-down wipe reveal.

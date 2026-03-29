@@ -71,12 +71,10 @@ func (r RoomsPanel) View() string {
 const maxVisibleUsers = 5
 
 type OnlinePanel struct {
-	Users          []string
-	NowTitle       string
-	GenreSwitching string // e.g. "Jazz" when pending genre differs from active
-	Width          int
-	Height         int
-	Frame          int // for animated online dots
+	Users  []string
+	Width  int
+	Height int
+	Frame  int // for animated online dots
 }
 
 func NewOnlinePanel() OnlinePanel {
@@ -122,24 +120,6 @@ func (o OnlinePanel) View() string {
 		}
 		if overflow > 0 {
 			b.WriteString(dim.Render(fmt.Sprintf("  +%d more\n", overflow)))
-		}
-	}
-
-	// ── Now Playing section ──
-	if o.NowTitle != "" {
-		b.WriteString("\n")
-		b.WriteString(header.Render("NOW PLAYING"))
-		b.WriteString("\n")
-		b.WriteString(sep)
-		b.WriteString("\n")
-		note := lipgloss.NewStyle().Foreground(ColorMusic).Render("♪")
-		title := truncateWidth(o.NowTitle, o.Width-6)
-		nowStyle := lipgloss.NewStyle().Foreground(ColorHighlight).Render(title)
-		fmt.Fprintf(&b, "%s %s\n", note, nowStyle)
-		if o.GenreSwitching != "" {
-			b.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Italic(true).
-				Render("↳ " + o.GenreSwitching + " next"))
-			b.WriteString("\n")
 		}
 	}
 

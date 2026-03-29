@@ -20,7 +20,6 @@ const (
 	ModalPost
 	ModalExpandNote
 	ModalAdminConfirm
-	ModalJukebox
 )
 
 // CloseModalMsg signals modal should close.
@@ -69,7 +68,6 @@ func (h HelpModal) View(width, height int) string {
 		{"F1 or ?", "this help"},
 		{"F2", "change nickname"},
 		{"F3", "switch rooms"},
-		{"F4", "jukebox"},
 		{"F5", "post note"},
 		{"ESC", "close modal"},
 		{"SHIFT+arrows", "scroll chat"},

@@ -23,7 +23,6 @@ var (
 	ColorAccent     = lipgloss.Color("137")
 	ColorGreen      = lipgloss.Color("108")
 	ColorTyping     = lipgloss.Color("109")
-	ColorMusic      = lipgloss.Color("174") // dusty rose for music elements
 
 	// 12 muted cantina tones for nicknames
 	NickColors = []color.Color{

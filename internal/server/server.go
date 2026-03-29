@@ -145,7 +145,7 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		s.cfg.Hub.Broadcast(msg.Room, msg)
 	}
 
-	model := ui.NewApp(sess, s.cfg.Store, s.cfg.Hub, onSend, s.cfg.JukeboxEngine, s.cfg.SudokuGame)
+	model := ui.NewApp(sess, s.cfg.Store, s.cfg.Hub, onSend, s.cfg.SudokuGame)
 	return model, nil
 }
 
