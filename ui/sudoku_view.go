@@ -172,36 +172,34 @@ func (s SudokuView) View() string {
 	}
 
 	boardView := s.renderBoard(board, cursors)
-	chatView := s.renderChat(chatW)
 
-	// Join side by side with a vertical separator
+	// Board sets the content height
 	boardLines := strings.Split(boardView, "\n")
+	contentH := len(boardLines)
+
+	chatView := s.renderChat(chatW, contentH)
+
+	// Join side by side
 	chatLines := strings.Split(chatView, "\n")
-
-	// Target height for the content area (leave room for status + help)
-	contentH := s.height - 7
-	if contentH < 13 {
-		contentH = 13
-	}
-
-	// Pad both to content height
-	for len(boardLines) < contentH {
-		boardLines = append(boardLines, strings.Repeat(" ", renderedBoardW))
-	}
-	for len(chatLines) < contentH {
-		chatLines = append(chatLines, "")
-	}
 
 	sep := lipgloss.NewStyle().Foreground(ColorDimmer)
 	var combined strings.Builder
 	for i := 0; i < contentH; i++ {
-		bl := boardLines[i]
+		bl := ""
+		if i < len(boardLines) {
+			bl = boardLines[i]
+		}
+		// Pad board line to consistent width
+		blPlain := stripAnsi(bl)
+		if len(blPlain) < renderedBoardW {
+			bl += strings.Repeat(" ", renderedBoardW-len(blPlain))
+		}
 		cl := ""
 		if i < len(chatLines) {
 			cl = chatLines[i]
 		}
 		combined.WriteString(bl)
-		combined.WriteString(sep.Render("  │ "))
+		combined.WriteString(sep.Render(" │ "))
 		combined.WriteString(cl)
 		combined.WriteString("\n")
 	}
@@ -306,58 +304,52 @@ func (s SudokuView) renderBoard(board [9][9]sudoku.Cell, cursors map[string]sudo
 	return b.String()
 }
 
-func (s SudokuView) renderChat(width int) string {
+func (s SudokuView) renderChat(width, totalHeight int) string {
 	header := lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
 	dim := lipgloss.NewStyle().Foreground(ColorDim)
 	dimmer := lipgloss.NewStyle().Foreground(ColorDimmer)
 
-	var b strings.Builder
-	b.WriteString(header.Render("GAME CHAT"))
-	b.WriteString("\n")
-	b.WriteString(dimmer.Render(strings.Repeat("─", width)))
-	b.WriteString("\n")
-
-	// Chat area height
-	chatHeight := s.height - 10
-	if chatHeight < 3 {
-		chatHeight = 3
+	// Fixed structure: header(1) + sep(1) + messages + sep(1) + input(1) = totalHeight
+	msgHeight := totalHeight - 4
+	if msgHeight < 2 {
+		msgHeight = 2
 	}
 
-	start := 0
-	if len(s.messages) > chatHeight {
-		start = len(s.messages) - chatHeight
-	}
+	var lines []string
 
-	lines := 0
-	for i := start; i < len(s.messages); i++ {
-		if lines >= chatHeight {
-			break
-		}
-		msg := s.messages[i]
+	// Header
+	lines = append(lines, header.Render("GAME CHAT"))
+	lines = append(lines, dimmer.Render(strings.Repeat("─", width)))
+
+	// Messages — bottom-aligned
+	var msgLines []string
+	for _, msg := range s.messages {
 		if msg.IsSystem {
-			b.WriteString(dim.Render(truncateWidth(msg.Text, width)))
-			b.WriteString("\n")
-			lines++
-			continue
+			msgLines = append(msgLines, dim.Render(truncateWidth(msg.Text, width)))
+		} else {
+			nick := NickStyle(msg.ColorIndex).Render(truncateWidth(msg.Nickname, 15))
+			text := truncateWidth(msg.Text, width-17)
+			msgLines = append(msgLines, fmt.Sprintf("%s %s", nick, dim.Render(text)))
 		}
-		nick := NickStyle(msg.ColorIndex).Render(truncateWidth(msg.Nickname, 15))
-		text := truncateWidth(msg.Text, width-17)
-		b.WriteString(fmt.Sprintf("%s %s\n", nick, dim.Render(text)))
-		lines++
 	}
-
-	for lines < chatHeight {
-		b.WriteString("\n")
-		lines++
+	// Only show the last msgHeight messages
+	if len(msgLines) > msgHeight {
+		msgLines = msgLines[len(msgLines)-msgHeight:]
 	}
+	// Pad top with empty lines so messages are bottom-aligned
+	for len(msgLines) < msgHeight {
+		msgLines = append([]string{""}, msgLines...)
+	}
+	lines = append(lines, msgLines...)
 
-	b.WriteString(dimmer.Render(strings.Repeat("─", width)))
-	b.WriteString("\n")
+	// Separator + input
+	lines = append(lines, dimmer.Render(strings.Repeat("─", width)))
 	if s.focusChat {
-		b.WriteString(s.input.View())
+		inputStr := s.input.View()
+		lines = append(lines, truncateWidth(inputStr, width))
 	} else {
-		b.WriteString(dim.Render("  Tab to chat..."))
+		lines = append(lines, dim.Render(" Tab to chat..."))
 	}
 
-	return b.String()
+	return strings.Join(lines, "\n")
 }
