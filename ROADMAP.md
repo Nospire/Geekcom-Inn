@@ -56,7 +56,7 @@ Public Mastodon timeline in a dedicated room.
 
 Let users browse the catalog and queue tracks on the website.
 
-- Browse tracks by genre on the website
+- Browse tracks on the website
 - Request a track — goes into the queue
 - Other users upvote requests
 - Most-voted track plays next

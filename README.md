@@ -32,7 +32,7 @@ ssh tavrn.sh
 
 **Gallery** — A shared sticky note board. Post, drag, read what others left behind.
 
-**Music** — Genre radio streaming on the website at [tavrn.sh](https://tavrn.sh) — Lofi, Jazz, Electronic, and Cantina channels.
+**Music** — 24/7 radio streaming on the website at [tavrn.sh](https://tavrn.sh).
 
 ### Keybinds
 

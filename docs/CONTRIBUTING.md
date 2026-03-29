@@ -36,7 +36,7 @@ internal/
   chat/            Message parsing and storage types
   hub/             Connection management, broadcasting
   identity/        Nickname generation, flair, color assignment
-  jukebox/         Genre catalogs, engine, streamer (web audio)
+  jukebox/         Track catalog, engine, streamer (web audio)
   ratelimit/       Chat rate limiting
   room/            Room definitions
   sanitize/        Input sanitization
