@@ -59,8 +59,7 @@ su - tavrn -c "
 su - tavrn -c "
   export PATH=\$PATH:/usr/local/go/bin
   cd ~/tavrn
-  go build -o tavrn      ./cmd/tavrn-admin
-  go build -o tavrn-client ./cmd/tavrn
+  go build -o tavrn ./cmd/tavrn-admin
 "
 ```
 
@@ -84,10 +83,8 @@ systemctl daemon-reload
 
 ```bash
 cp /home/tavrn/tavrn/deploy/sbin/tavrn-finalize-update /usr/local/sbin/tavrn-finalize-update
-cp /home/tavrn/tavrn/deploy/sbin/tavrn-refresh-client  /usr/local/sbin/tavrn-refresh-client
 chmod 755 /usr/local/sbin/tavrn-finalize-update
-chmod 755 /usr/local/sbin/tavrn-refresh-client
-chown root:root /usr/local/sbin/tavrn-finalize-update /usr/local/sbin/tavrn-refresh-client
+chown root:root /usr/local/sbin/tavrn-finalize-update
 ```
 
 ### Sudoers rule
@@ -118,8 +115,8 @@ chown -R caddy:caddy /var/www/tavrn
 /usr/local/sbin/tavrn-finalize-update
 ```
 
-This sets `cap_net_bind_service` on the binary, creates `/usr/local/bin/tavrn` and
-`/usr/local/bin/tavrn-client` symlinks, and starts the service.
+This sets `cap_net_bind_service` on the binary, creates the `/usr/local/bin/tavrn`
+symlink, and starts the service.
 
 ---
 
@@ -243,12 +240,6 @@ As the `tavrn` user on the VPS (via admin SSH):
 
 ```bash
 ~/tavrn/tavrn --update
-```
-
-### Update client binary only (no downtime)
-
-```bash
-~/tavrn/tavrn --update-client
 ```
 
 ### Send a message to all connected users

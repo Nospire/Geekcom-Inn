@@ -18,10 +18,8 @@ A local AI that lives in the tavern and learns from the regulars.
 
 A shared room where users paste YouTube links, vote on what plays next, and watch together.
 
-- Users with the client binary (mpv installed) get video in a separate mpv window
-- Bare SSH users get audio-only via the existing streamer
-- Server uses yt-dlp for metadata and audio fallback
-- New wire protocol message type for "play this URL"
+- Audio streams via the website player
+- Server uses yt-dlp for metadata and audio
 - Voting system: paste link, upvote, most votes plays next
 - TUI shows now-playing info, queue, and vote counts while users chat
 
@@ -56,9 +54,9 @@ Public Mastodon timeline in a dedicated room.
 
 ## Radio Requests + Voting
 
-Let users browse the catalog and queue tracks.
+Let users browse the catalog and queue tracks on the website.
 
-- Browse tracks by genre in the jukebox modal
+- Browse tracks by genre on the website
 - Request a track — goes into the queue
 - Other users upvote requests
 - Most-voted track plays next
