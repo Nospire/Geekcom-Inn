@@ -13,10 +13,7 @@ import (
 	"time"
 )
 
-// Streamer fetches MP3 data from track URLs and sends complete tracks
-// to connected audio channels.
-//
-// Wire format per track: [4-byte header len][JSON header][4-byte audio len][MP3 bytes]
+// Streamer fetches MP3 data from track URLs and sends it to connected clients.
 type Streamer struct {
 	mu              sync.RWMutex
 	conns           map[io.WriteCloser]bool
@@ -261,17 +258,8 @@ func (s *Streamer) signalError() {
 	}
 }
 
-// sendTrack writes one complete track frame to a connection:
-// [header len][JSON header][audio len][MP3 bytes]
-func (s *Streamer) sendTrack(conn io.WriteCloser, track Track, audio []byte) error {
-	if err := EncodeTrackHeader(conn, track); err != nil {
-		log.Printf("streamer: header write error: %v", err)
-		return err
-	}
-	if err := EncodeAudioLength(conn, uint32(len(audio))); err != nil {
-		log.Printf("streamer: audio length write error: %v", err)
-		return err
-	}
+// sendTrack writes raw MP3 audio bytes to a connection.
+func (s *Streamer) sendTrack(conn io.WriteCloser, _ Track, audio []byte) error {
 	if _, err := conn.Write(audio); err != nil {
 		log.Printf("streamer: audio write error: %v", err)
 		return err

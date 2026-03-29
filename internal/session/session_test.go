@@ -61,7 +61,7 @@ func TestMsgTypes(t *testing.T) {
 	types := []MsgType{
 		MsgChat, MsgSystem, MsgCanvasDelta, MsgUserJoined,
 		MsgUserLeft, MsgPurge, MsgTyping, MsgNoteCreate,
-		MsgNoteMove, MsgNoteDelete, MsgJukeboxUpdate, MsgBanner,
+		MsgNoteMove, MsgNoteDelete, MsgBanner,
 	}
 	seen := make(map[MsgType]bool)
 	for _, mt := range types {

@@ -19,7 +19,6 @@ const (
 	MsgNoteCreate
 	MsgNoteMove
 	MsgNoteDelete
-	MsgJukeboxUpdate
 	MsgBanner
 	MsgRoomAdded
 	MsgSudokuPlace  // player places a number

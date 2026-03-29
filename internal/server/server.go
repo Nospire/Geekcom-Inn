@@ -13,8 +13,6 @@ import (
 	bm "charm.land/wish/v2/bubbletea"
 	lm "charm.land/wish/v2/elapsed"
 	"github.com/charmbracelet/ssh"
-	gossh "golang.org/x/crypto/ssh"
-
 	"tavrn.sh/internal/hub"
 	"tavrn.sh/internal/identity"
 	"tavrn.sh/internal/jukebox"
@@ -31,7 +29,6 @@ type Config struct {
 	Store         *store.Store
 	Hub           *hub.Hub
 	JukeboxEngine *jukebox.Engine
-	Streamer      *jukebox.Streamer
 	SudokuGame    *sudoku.Game
 }
 
@@ -58,14 +55,6 @@ func New(cfg Config) (*Server, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("wish server: %w", err)
-	}
-
-	// Register custom audio channel handler alongside the default session handler
-	if cfg.Streamer != nil {
-		ws.ChannelHandlers = map[string]ssh.ChannelHandler{
-			"session":     ssh.DefaultSessionHandler,
-			"tavrn-audio": s.audioChannelHandler,
-		}
 	}
 
 	s.wish = ws
@@ -163,11 +152,6 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 func (s *Server) Start(ctx context.Context) error {
 	if s.cfg.JukeboxEngine != nil {
 		go s.cfg.JukeboxEngine.Run(ctx)
-		s.cfg.JukeboxEngine.SetOnStateChange(func() {
-			s.cfg.Hub.BroadcastAll(session.Msg{
-				Type: session.MsgJukeboxUpdate,
-			})
-		})
 	}
 
 	log.Printf("tavrn.sh listening on %s:%d", s.cfg.Host, s.cfg.Port)
@@ -180,19 +164,3 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 	return s.wish.Shutdown(ctx)
 }
 
-func (s *Server) audioChannelHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
-	ch, reqs, err := newChan.Accept()
-	if err != nil {
-		log.Printf("audio channel: accept error: %v", err)
-		return
-	}
-	go gossh.DiscardRequests(reqs)
-
-	log.Printf("audio channel: client connected (%d total)", s.cfg.Streamer.ConnCount()+1)
-	s.cfg.Streamer.AddConn(ch)
-
-	<-ctx.Done()
-	s.cfg.Streamer.RemoveConn(ch)
-	ch.Close()
-	log.Printf("audio channel: client disconnected (%d remaining)", s.cfg.Streamer.ConnCount())
-}

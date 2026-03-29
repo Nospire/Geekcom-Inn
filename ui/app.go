@@ -166,9 +166,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case HubMsg:
 		inner := session.Msg(msg)
-		if inner.Type == session.MsgJukeboxUpdate {
-			return a, WaitForHubMsg(a.session.Send)
-		}
 		a.handleHubMsg(inner)
 		return a, WaitForHubMsg(a.session.Send)
 
