@@ -2,6 +2,7 @@ bin/
 /tavrn
 /tavrn-admin
 tavrn.db
+tavrn.log
 .ssh/
 *.db-wal
 *.db-shm

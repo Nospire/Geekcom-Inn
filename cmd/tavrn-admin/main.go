@@ -143,6 +143,13 @@ func runPurge() {
 }
 
 func runServer() {
+	// Redirect logs to file so they don't corrupt connected TUI sessions
+	logFile, err := os.OpenFile("tavrn.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err == nil {
+		log.SetOutput(logFile)
+		defer logFile.Close()
+	}
+
 	st, err := store.New(resolvedDBPath())
 	if err != nil {
 		log.Fatalf("store: %v", err)
