@@ -642,7 +642,7 @@ func (m MentionModal) View(width, height int) string {
 			nick := lipgloss.NewStyle().Foreground(NickColors[ctx.ColorIndex%len(NickColors)]).
 				Render(ctx.Nickname)
 			ts := dim.Render(formatTimestamp(ctx.Timestamp, time.Now()))
-			b.WriteString(fmt.Sprintf("  %s  %s\n", nick, ts))
+			fmt.Fprintf(&b, "  %s  %s\n", nick, ts)
 			wrapped := wordWrap(ctx.Text, wrapWidth)
 			for _, line := range wrapped {
 				b.WriteString(dim.Render("      "+line) + "\n")
@@ -656,7 +656,7 @@ func (m MentionModal) View(width, height int) string {
 	nickColor := NickColors[cur.ColorIndex%len(NickColors)]
 	nick := lipgloss.NewStyle().Foreground(nickColor).Bold(true).Render(cur.Author)
 	ts := dim.Render(formatTimestamp(cur.Timestamp, time.Now()))
-	b.WriteString(fmt.Sprintf("▸ %s  %s\n", nick, ts))
+	fmt.Fprintf(&b, "▸ %s  %s\n", nick, ts)
 	wrapped := wordWrap(cur.Text, wrapWidth)
 	for _, line := range wrapped {
 		b.WriteString(highlight.Render("▸     "+line) + "\n")
