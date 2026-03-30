@@ -883,6 +883,7 @@ func (a App) View() tea.View {
 	a.topBar.OnlineCount = a.hub.OnlineCount()
 	wc, _ := a.store.WeeklyVisitorCount()
 	a.topBar.WeeklyCount = wc
+	a.topBar.AllTimeCount = a.store.AllTimeVisitorCount()
 
 	sessions := a.hub.Sessions(a.session.Room)
 	var onlineNames []string

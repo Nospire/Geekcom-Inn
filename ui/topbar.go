@@ -8,10 +8,11 @@ import (
 )
 
 type TopBar struct {
-	Room        string
-	OnlineCount int
-	WeeklyCount int
-	Width       int
+	Room           string
+	OnlineCount    int
+	WeeklyCount    int
+	AllTimeCount   int
+	Width          int
 }
 
 func NewTopBar() TopBar {
@@ -49,9 +50,11 @@ func (t TopBar) View() string {
 		fmt.Sprintf("%d online", t.OnlineCount))
 	weekly := lipgloss.NewStyle().Foreground(ColorDim).Render(
 		fmt.Sprintf("%d this week", t.WeeklyCount))
+	allTime := lipgloss.NewStyle().Foreground(ColorDimmer).Render(
+		fmt.Sprintf("%d all time", t.AllTimeCount))
 	dot := lipgloss.NewStyle().Foreground(ColorDimmer).Render(" · ")
 
-	statsRight := fmt.Sprintf("%s %s%s%s  ", onlineDot, onlineNum, dot, weekly)
+	statsRight := fmt.Sprintf("%s %s%s%s%s%s  ", onlineDot, onlineNum, dot, weekly, dot, allTime)
 
 	roomW := lipgloss.Width(room)
 	statsW := lipgloss.Width(statsRight)

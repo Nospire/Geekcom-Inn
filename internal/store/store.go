@@ -1,6 +1,7 @@
 package store
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -93,6 +94,9 @@ func (s *Store) migrate() error {
 		id         INTEGER PRIMARY KEY CHECK (id = 1),
 		text       TEXT NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE TABLE IF NOT EXISTS all_time_visitors (
+		fp_hash TEXT PRIMARY KEY
 	);
 	`
 	if _, err := s.db.Exec(schema); err != nil {
@@ -257,6 +261,21 @@ func (s *Store) BanList() ([]BanRow, error) {
 		bans = append(bans, b)
 	}
 	return bans, nil
+}
+
+// RecordAllTimeVisitor records a unique visitor using a hash of their fingerprint.
+// The actual fingerprint is never stored. Survives purges.
+func (s *Store) RecordAllTimeVisitor(fingerprint string) {
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(fingerprint)))
+	s.db.Exec(`INSERT OR IGNORE INTO all_time_visitors (fp_hash) VALUES (?)`, hash)
+}
+
+// AllTimeVisitorCount returns the total number of unique visitors ever.
+func (s *Store) AllTimeVisitorCount() int {
+	row := s.db.QueryRow(`SELECT COUNT(*) FROM all_time_visitors`)
+	var count int
+	row.Scan(&count)
+	return count
 }
 
 func (s *Store) RecordVisitor(fingerprint string) error {

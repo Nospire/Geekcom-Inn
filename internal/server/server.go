@@ -88,6 +88,7 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 
 	s.cfg.Store.UpsertUser(fingerprint, nickname)
 	s.cfg.Store.RecordVisitor(fingerprint)
+	s.cfg.Store.RecordAllTimeVisitor(fingerprint)
 
 	user, _ := s.cfg.Store.GetUser(fingerprint)
 	visitCount := 1
