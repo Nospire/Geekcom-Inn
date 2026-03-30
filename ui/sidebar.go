@@ -40,44 +40,48 @@ func (r RoomsPanel) View() string {
 	b.WriteString(sep)
 	b.WriteString("\n")
 
-	activityBadge := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
-	mentionBadge := lipgloss.NewStyle().Foreground(ColorAmber).Bold(true)
+	contentW := r.Width - 3 // border(1) + paddingLR(2)
 
 	for _, rm := range r.Rooms {
 		isCurrent := rm.Name == r.CurrentRoom
-		name := fmt.Sprintf("#%s", rm.Name)
-		count := fmt.Sprintf(" %d", rm.Count)
+		name := "#" + rm.Name
+
+		// Build right-aligned section: online count + optional badges
+		countStr := fmt.Sprintf("%d", rm.Count)
+		var badgeStr string
+		var badgeW int
+		if !isCurrent && r.ActivityCounts != nil {
+			if ac := r.ActivityCounts[rm.Name]; ac > 0 {
+				part := fmt.Sprintf(" %d", ac)
+				badgeStr += lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render(part)
+				badgeW += len(part)
+			}
+		}
+		if r.MentionCounts != nil {
+			if mc := r.MentionCounts[rm.Name]; mc > 0 {
+				part := fmt.Sprintf(" @%d", mc)
+				badgeStr += lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).Render(part)
+				badgeW += len(part)
+			}
+		}
+
+		// indicator(1) + name + gap(>=1) + count + badges = contentW
+		rightW := len(countStr) + badgeW
+		gap := contentW - 1 - lipgloss.Width(name) - rightW
+		if gap < 1 {
+			gap = 1
+		}
+		padding := strings.Repeat(" ", gap)
 
 		if isCurrent {
-			// Active room: highlighted with indicator
 			indicator := lipgloss.NewStyle().Foreground(ColorHighlight).Render("▸")
 			roomName := lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).Render(name)
-			roomCount := lipgloss.NewStyle().Foreground(ColorDim).Render(count)
-			line := indicator + roomName + roomCount
-			if r.MentionCounts != nil {
-				if mc := r.MentionCounts[rm.Name]; mc > 0 {
-					line += mentionBadge.Render(fmt.Sprintf(" (%d)", mc))
-				}
-			}
-			b.WriteString(line + "\n")
+			roomCount := lipgloss.NewStyle().Foreground(ColorDim).Render(countStr)
+			b.WriteString(indicator + roomName + padding + roomCount + badgeStr + "\n")
 		} else {
-			// Other rooms: dimmer
 			roomName := lipgloss.NewStyle().Foreground(ColorSand).Render(name)
-			roomCount := lipgloss.NewStyle().Foreground(ColorDimmer).Render(count)
-			line := " " + roomName + roomCount
-			// Activity count (new messages in last 10min)
-			if r.ActivityCounts != nil {
-				if ac := r.ActivityCounts[rm.Name]; ac > 0 {
-					line += activityBadge.Render(fmt.Sprintf(" %d", ac))
-				}
-			}
-			// Mention badge takes priority appearance after activity
-			if r.MentionCounts != nil {
-				if mc := r.MentionCounts[rm.Name]; mc > 0 {
-					line += mentionBadge.Render(fmt.Sprintf(" @%d", mc))
-				}
-			}
-			b.WriteString(line + "\n")
+			roomCount := lipgloss.NewStyle().Foreground(ColorDimmer).Render(countStr)
+			b.WriteString(" " + roomName + padding + roomCount + badgeStr + "\n")
 		}
 	}
 
