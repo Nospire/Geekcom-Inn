@@ -65,6 +65,7 @@ type App struct {
 	joinRoomModal   JoinRoomModal
 	postModal       PostModal
 	expandNoteModal ExpandNoteModal
+	mentionModal    MentionModal
 
 	// Mentions
 	mentions []mention.Mention
@@ -206,6 +207,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		return a, nil
 
+	case MentionJumpMsg:
+		a.modal = ModalNone
+		if msg.Room != a.session.Room {
+			a.switchRoom(msg.Room)
+		}
+		return a, nil
+
 	case GalleryExpandMsg:
 		isOwn := msg.Note.Fingerprint == a.session.Fingerprint
 		a.modal = ModalExpandNote
@@ -282,6 +290,17 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			a.modal = ModalJoinRoom
 			a.joinRoomModal = NewJoinRoomModal(allRooms, counts, a.session.Room)
+			return a, nil
+		case "f4":
+			unread := a.unreadMentions()
+			if len(unread) == 0 {
+				return a, nil
+			}
+			contexts := a.buildMentionContexts(unread)
+			a.modal = ModalMention
+			a.mentionModal = NewMentionModal(unread, contexts)
+			// Mark first as read
+			a.markMentionRead(0)
 			return a, nil
 		case "f5":
 			a.modal = ModalPost
@@ -463,6 +482,15 @@ func (a App) updateModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ModalHelp:
 		// Help modal only responds to ESC (handled above)
 		return a, nil
+	case ModalMention:
+		prev := a.mentionModal.Current()
+		var cmd tea.Cmd
+		a.mentionModal, cmd = a.mentionModal.Update(msg)
+		// Mark new mention as read if user navigated
+		if a.mentionModal.Current() != prev {
+			a.markMentionRead(a.mentionModal.Current())
+		}
+		return a, cmd
 	}
 	return a, nil
 }
@@ -626,6 +654,61 @@ func (a *App) unreadMentionCount(room string) int {
 	return count
 }
 
+// unreadMentions returns all unread mentions.
+func (a *App) unreadMentions() []mention.Mention {
+	var unread []mention.Mention
+	for _, m := range a.mentions {
+		if !m.Read {
+			unread = append(unread, m)
+		}
+	}
+	return unread
+}
+
+// buildMentionContexts loads 3 preceding messages for each mention from the store.
+func (a *App) buildMentionContexts(mentions []mention.Mention) [][]chat.Message {
+	contexts := make([][]chat.Message, len(mentions))
+	for i, m := range mentions {
+		rows, err := a.store.RecentMessages(m.Room, 50)
+		if err != nil {
+			continue
+		}
+		// Find messages just before the mention timestamp
+		var before []chat.Message
+		for _, row := range rows {
+			if row.CreatedAt.Before(m.Timestamp) && !row.IsSystem {
+				before = append(before, chat.Message{
+					Nickname:   row.Nickname,
+					ColorIndex: row.ColorIndex,
+					Text:       row.Text,
+					Room:       row.Room,
+					Timestamp:  row.CreatedAt,
+				})
+			}
+		}
+		// Take last 3
+		if len(before) > 3 {
+			before = before[len(before)-3:]
+		}
+		contexts[i] = before
+	}
+	return contexts
+}
+
+// markMentionRead marks a mention at the given index (in unread list) as read.
+func (a *App) markMentionRead(unreadIdx int) {
+	count := 0
+	for i := range a.mentions {
+		if !a.mentions[i].Read {
+			if count == unreadIdx {
+				a.mentions[i].Read = true
+				return
+			}
+			count++
+		}
+	}
+}
+
 func (a *App) switchRoom(target string) {
 	oldRoom := a.session.Room
 
@@ -787,6 +870,8 @@ func (a App) View() tea.View {
 	}
 	a.rooms.MentionCounts = mentionCounts
 
+	a.bottomBar.MentionCount = a.unreadMentionCount("")
+
 	topBar := a.topBar.View()
 	bottomBar := a.bottomBar.View()
 
@@ -828,6 +913,8 @@ func (a App) View() tea.View {
 			modalBox = a.postModal.View(a.width, a.height)
 		case ModalExpandNote:
 			modalBox = a.expandNoteModal.View(a.width, a.height)
+		case ModalMention:
+			modalBox = a.mentionModal.View(a.width, a.height)
 		}
 		base = Overlay(base, modalBox, a.width, a.height)
 	}
