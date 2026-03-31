@@ -21,7 +21,6 @@ type TankardView struct {
 	frame     int  // 0 = idle, 1-2 = press animation
 	animating bool // animation in progress
 	focused   bool
-	width     int
 }
 
 func NewTankardView() TankardView {

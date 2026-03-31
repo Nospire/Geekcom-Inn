@@ -113,8 +113,6 @@ func NewOnlinePanel() OnlinePanel {
 // Animated dot cycles for online presence
 var onlineDotFrames = []string{"●", "●", "◉", "●"}
 
-const tankardHeight = 6 // 4 art lines + 1 counter + 1 separator
-
 func (o OnlinePanel) View() string {
 	header := lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
 	dim := lipgloss.NewStyle().Foreground(ColorDim)
