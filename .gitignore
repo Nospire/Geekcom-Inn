@@ -13,3 +13,5 @@ docs/*-design.md
 .addroom
 .purge
 .env
+tavern.yaml
+bartender/soul.md
