@@ -140,6 +140,40 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		}
 	}
 
+	tavernState := func() bartender.TavernState {
+		wc, _ := s.cfg.Store.WeeklyVisitorCount()
+		return bartender.TavernState{
+			OnlineCount:     s.cfg.Hub.OnlineCount(),
+			TimeUTC:         time.Now().UTC(),
+			WeeklyVisitors:  wc,
+			AllTimeVisitors: s.cfg.Store.AllTimeVisitorCount(),
+			ActivePolls:     len(s.cfg.PollStore.ActiveRoomPolls("lounge")),
+		}
+	}
+
+	gatherContext := func() []bartender.ChatMsg {
+		history, _ := s.cfg.Store.RecentMessages("lounge", 20)
+		var ctx []bartender.ChatMsg
+		for _, m := range history {
+			if !m.IsSystem {
+				ctx = append(ctx, bartender.ChatMsg{Nickname: m.Nickname, Text: m.Text})
+			}
+		}
+		return ctx
+	}
+
+	broadcastBartender := func(reply string) {
+		btMsg := session.Msg{
+			Type:       session.MsgChat,
+			Nickname:   "bartender",
+			ColorIndex: 6,
+			Text:       reply,
+			Room:       "lounge",
+		}
+		s.cfg.Store.SaveMessage("lounge", "", "bartender", 6, reply, false)
+		s.cfg.Hub.Broadcast("lounge", btMsg)
+	}
+
 	onSend := func(msg session.Msg) {
 		switch msg.Type {
 		case session.MsgChat:
@@ -149,45 +183,41 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		}
 		s.cfg.Hub.Broadcast(msg.Room, msg)
 
-		// Bartender trigger — async, after the user's message is already broadcast
-		if msg.Type == session.MsgChat && s.cfg.Bartender != nil && bartender.ShouldRespond(msg.Text, msg.Room) {
+		if s.cfg.Bartender == nil || msg.Type != session.MsgChat {
+			return
+		}
+
+		// Direct @bartender trigger
+		if bartender.ShouldRespond(msg.Text, msg.Room) {
 			if s.cfg.Bartender.CanRespond(msg.Fingerprint) {
 				go func() {
-					// Show "bartender is typing..."
 					s.cfg.Hub.Broadcast("lounge", session.Msg{
-						Type:     session.MsgTyping,
-						Nickname: "bartender",
-						Room:     "lounge",
+						Type: session.MsgTyping, Nickname: "bartender", Room: "lounge",
 					})
-
-					// Gather recent context
-					history, _ := s.cfg.Store.RecentMessages("lounge", 20)
-					var context []bartender.ChatMsg
-					for _, m := range history {
-						if !m.IsSystem {
-							context = append(context, bartender.ChatMsg{
-								Nickname: m.Nickname,
-								Text:     m.Text,
-							})
-						}
-					}
-					reply, err := s.cfg.Bartender.Respond(context, msg.Fingerprint, msg.Nickname, msg.Text)
+					reply, err := s.cfg.Bartender.Respond(gatherContext(), tavernState(), msg.Fingerprint, msg.Nickname, msg.Text)
 					if err != nil {
 						log.Printf("bartender error: %v", err)
 						return
 					}
-					// Broadcast as bartender
-					btMsg := session.Msg{
-						Type:       session.MsgChat,
-						Nickname:   "bartender",
-						ColorIndex: 6, // dim lavender
-						Text:       reply,
-						Room:       "lounge",
-					}
-					s.cfg.Store.SaveMessage("lounge", "", "bartender", 6, reply, false)
-					s.cfg.Hub.Broadcast("lounge", btMsg)
+					broadcastBartender(reply)
 				}()
 			}
+			return
+		}
+
+		// Unprompted remark — only on lounge messages
+		if msg.Room == "lounge" && s.cfg.Bartender.ShouldRemark() {
+			go func() {
+				s.cfg.Hub.Broadcast("lounge", session.Msg{
+					Type: session.MsgTyping, Nickname: "bartender", Room: "lounge",
+				})
+				reply, err := s.cfg.Bartender.Remark(tavernState(), gatherContext())
+				if err != nil {
+					log.Printf("bartender remark error: %v", err)
+					return
+				}
+				broadcastBartender(reply)
+			}()
 		}
 	}
 

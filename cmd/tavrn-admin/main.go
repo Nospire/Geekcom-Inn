@@ -385,7 +385,14 @@ func runServer() {
 	defer cancel()
 
 	go startPurgeScheduler(st, h, pollStore)
-	// Gallery notes now persist until weekly purge — no hourly cleanup.
+	if bt != nil {
+		go func() {
+			for {
+				time.Sleep(5 * time.Minute)
+				bt.DecayMood()
+			}
+		}()
+	}
 	go watchBannerFile(st, h)
 	go watchAddRoomFile(st, h)
 	go watchRenameRoomFile(st, h)
