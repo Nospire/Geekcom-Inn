@@ -185,7 +185,7 @@ func runRemoveRoom(name string) {
 	}
 	// Protect the landing room
 	firstRoom := "lounge" // fallback
-	if cfg, err := config.Load(findFile("tavern.yaml")); err == nil {
+	if cfg, err := config.Load(resolvedPath("tavern.yaml")); err == nil {
 		firstRoom = cfg.FirstRoom()
 	}
 	if name == firstRoom {
@@ -318,7 +318,7 @@ func runServer() {
 	}
 
 	// Load tavern config — required for startup
-	configPath := findFile("tavern.yaml")
+	configPath := resolvedPath("tavern.yaml")
 	if _, statErr := os.Stat(configPath); os.IsNotExist(statErr) {
 		fmt.Fprintln(os.Stderr, "ERROR: tavern.yaml not found.")
 		fmt.Fprintln(os.Stderr, "")
@@ -383,10 +383,10 @@ func runServer() {
 	var bt *bartender.Bartender
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey != "" {
-		soulRaw, err := os.ReadFile(findFile("bartender/soul.md"))
+		soulRaw, err := os.ReadFile(resolvedPath("bartender/soul.md"))
 		if err != nil {
 			log.Printf("bartender: soul.md not found, trying soul.md.example")
-			soulRaw, err = os.ReadFile(findFile("bartender/soul.md.example"))
+			soulRaw, err = os.ReadFile(resolvedPath("bartender/soul.md.example"))
 			if err != nil {
 				log.Printf("bartender: no soul file found, using default")
 				soulRaw = []byte("You are a gruff bartender in a terminal tavern. Keep replies to 1-2 sentences.")
@@ -521,27 +521,24 @@ func runUpdate() error {
 	return nil
 }
 
-// resolvedPath returns the absolute path to a file next to the executable,
-// regardless of what directory the binary is invoked from.
+// resolvedPath returns the path to a file, checking the working directory
+// first, then next to the executable. For new files that don't exist yet,
+// it prefers cwd if tavern.yaml is there (indicates correct working dir).
 func resolvedPath(name string) string {
-	repoDir, err := executableRepoDir()
-	if err != nil {
-		return name // fallback to relative
-	}
-	return filepath.Join(repoDir, name)
-}
-
-// findFile checks the working directory first, then next to the executable.
-// Returns the first path that exists, or the relative name as fallback.
-func findFile(name string) string {
+	// If file exists in cwd, use that
 	if _, err := os.Stat(name); err == nil {
 		return name
 	}
-	resolved := resolvedPath(name)
-	if _, err := os.Stat(resolved); err == nil {
-		return resolved
+	// If cwd looks like the repo dir (has tavern.yaml), use cwd for new files too
+	if _, err := os.Stat("tavern.yaml"); err == nil {
+		return name
 	}
-	return name
+	// Fall back to next to the executable
+	repoDir, err := executableRepoDir()
+	if err != nil {
+		return name
+	}
+	return filepath.Join(repoDir, name)
 }
 
 func resolvedDBPath() string {

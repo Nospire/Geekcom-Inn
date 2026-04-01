@@ -1,0 +1,20 @@
+services:
+  tavrn:
+    build: .
+    ports:
+      - "2222:2222"
+      - "8090:8090"
+    volumes:
+      - ./tavern.yaml:/app/tavern.yaml:ro
+      - ./bartender:/app/bartender:ro
+      - ./catalogs:/app/catalogs:ro
+      - tavrn-data:/app/data
+      - tavrn-ssh:/app/.ssh
+    environment:
+      - TAVRN_PORT=2222
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    restart: unless-stopped
+
+volumes:
+  tavrn-data:
+  tavrn-ssh:

@@ -1,0 +1,11 @@
+bin/
+.ssh/
+*.db
+*.db-wal
+*.db-shm
+*.log
+.env
+tavern.yaml
+.git
+.worktrees/
+docs/
