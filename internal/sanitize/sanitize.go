@@ -33,11 +33,18 @@ func Clean(input string) string {
 
 // ReservedNicks are nicknames that cannot be claimed by regular users.
 var ReservedNicks = map[string]bool{
-	"neur0map":  true,
 	"admin":     true,
 	"tavrn":     true,
 	"system":    true,
 	"bartender": true,
+}
+
+var ownerNick string
+
+// SetOwnerNick registers the owner's nickname as reserved.
+// Must be called before any concurrent access to CleanNick.
+func SetOwnerNick(nick string) {
+	ownerNick = nick
 }
 
 // CleanNick sanitizes a nickname. Must be 2-20 runes after cleaning.
@@ -54,6 +61,9 @@ func CleanNick(nick string) (string, error) {
 		return "", errors.New("nickname must be 2-20 characters")
 	}
 	if ReservedNicks[strings.ToLower(cleaned)] {
+		return "", errors.New("that nickname is reserved")
+	}
+	if ownerNick != "" && strings.ToLower(cleaned) == strings.ToLower(ownerNick) {
 		return "", errors.New("that nickname is reserved")
 	}
 	return cleaned, nil

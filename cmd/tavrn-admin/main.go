@@ -17,6 +17,7 @@ import (
 	"tavrn.sh/internal/bartender"
 	"tavrn.sh/internal/config"
 	"tavrn.sh/internal/hub"
+	"tavrn.sh/internal/sanitize"
 	"tavrn.sh/internal/jukebox"
 	"tavrn.sh/internal/poll"
 	"tavrn.sh/internal/server"
@@ -330,6 +331,8 @@ func runServer() {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
 	}
+	sanitize.SetOwnerNick(cfg.Owner.Name)
+
 	st, err := store.New(resolvedDBPath())
 	if err != nil {
 		log.Fatalf("store: %v", err)

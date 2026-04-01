@@ -143,3 +143,24 @@ func TestCleanNote(t *testing.T) {
 		}
 	})
 }
+
+func TestReservedNicksIncludesOwner(t *testing.T) {
+	SetOwnerNick("alice")
+	defer SetOwnerNick("")
+	_, err := CleanNick("alice")
+	if err == nil {
+		t.Error("owner nick should be reserved")
+	}
+	_, err = CleanNick("ALICE")
+	if err == nil {
+		t.Error("owner nick should be case-insensitive reserved")
+	}
+}
+
+func TestNeur0mapNoLongerHardcoded(t *testing.T) {
+	SetOwnerNick("")
+	_, err := CleanNick("neur0map")
+	if err != nil {
+		t.Errorf("neur0map should not be reserved when no owner set: %v", err)
+	}
+}
