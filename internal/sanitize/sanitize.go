@@ -33,10 +33,11 @@ func Clean(input string) string {
 
 // ReservedNicks are nicknames that cannot be claimed by regular users.
 var ReservedNicks = map[string]bool{
-	"neur0map": true,
-	"admin":    true,
-	"tavrn":    true,
-	"system":   true,
+	"neur0map":  true,
+	"admin":     true,
+	"tavrn":     true,
+	"system":    true,
+	"bartender": true,
 }
 
 // CleanNick sanitizes a nickname. Must be 2-20 runes after cleaning.

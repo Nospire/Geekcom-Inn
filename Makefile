@@ -1,6 +1,7 @@
 .PHONY: run test check clean
 
 # Build server and start it
+# Set OPENAI_API_KEY in env to enable bartender AI
 run:
 	@go build -o bin/tavrn-admin ./cmd/tavrn-admin
 	@./bin/tavrn-admin & sleep 1 && ssh localhost -p 2222; kill %1 2>/dev/null

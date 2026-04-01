@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"tavrn.sh/internal/bartender"
 	"tavrn.sh/internal/hub"
 	"tavrn.sh/internal/jukebox"
 	"tavrn.sh/internal/poll"
@@ -349,6 +350,21 @@ func runServer() {
 
 	pollStore := poll.NewStore()
 
+	// Bartender AI — disabled if OPENAI_API_KEY is not set
+	var bt *bartender.Bartender
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey != "" {
+		soul, err := os.ReadFile("bartender/soul.md")
+		if err != nil {
+			log.Printf("bartender: soul.md not found, using default")
+			soul = []byte("You are a gruff bartender in a terminal tavern. Keep replies to 1-2 sentences.")
+		}
+		bt = bartender.New(apiKey, string(soul))
+		log.Println("bartender: enabled")
+	} else {
+		log.Println("bartender: disabled (no OPENAI_API_KEY)")
+	}
+
 	port := getPort()
 	srv, err := server.New(server.Config{
 		Host:          "0.0.0.0",
@@ -359,6 +375,7 @@ func runServer() {
 		JukeboxEngine: jukeboxEngine,
 		SudokuGame:    sudokuGame,
 		PollStore:     pollStore,
+		Bartender:     bt,
 	})
 	if err != nil {
 		log.Fatalf("server: %v", err)

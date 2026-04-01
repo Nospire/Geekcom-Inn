@@ -13,6 +13,7 @@ import (
 	bm "charm.land/wish/v2/bubbletea"
 	lm "charm.land/wish/v2/elapsed"
 	"github.com/charmbracelet/ssh"
+	"tavrn.sh/internal/bartender"
 	"tavrn.sh/internal/hub"
 	"tavrn.sh/internal/identity"
 	"tavrn.sh/internal/jukebox"
@@ -32,6 +33,7 @@ type Config struct {
 	JukeboxEngine *jukebox.Engine
 	SudokuGame    *sudoku.Game
 	PollStore     *poll.Store
+	Bartender     *bartender.Bartender
 }
 
 type Server struct {
@@ -146,6 +148,40 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 			s.cfg.Store.SaveMessage(msg.Room, "", "", 0, msg.Text, true)
 		}
 		s.cfg.Hub.Broadcast(msg.Room, msg)
+
+		// Bartender trigger — async, after the user's message is already broadcast
+		if msg.Type == session.MsgChat && s.cfg.Bartender != nil && bartender.ShouldRespond(msg.Text, msg.Room) {
+			if s.cfg.Bartender.CanRespond(msg.Fingerprint) {
+				go func() {
+					// Gather recent context
+					history, _ := s.cfg.Store.RecentMessages("lounge", 20)
+					var context []bartender.ChatMsg
+					for _, m := range history {
+						if !m.IsSystem {
+							context = append(context, bartender.ChatMsg{
+								Nickname: m.Nickname,
+								Text:     m.Text,
+							})
+						}
+					}
+					reply, err := s.cfg.Bartender.Respond(context, msg.Nickname, msg.Text)
+					if err != nil {
+						log.Printf("bartender error: %v", err)
+						return
+					}
+					// Broadcast as bartender
+					btMsg := session.Msg{
+						Type:       session.MsgChat,
+						Nickname:   "bartender",
+						ColorIndex: 6, // dim lavender
+						Text:       reply,
+						Room:       "lounge",
+					}
+					s.cfg.Store.SaveMessage("lounge", "", "bartender", 6, reply, false)
+					s.cfg.Hub.Broadcast("lounge", btMsg)
+				}()
+			}
+		}
 	}
 
 	model := ui.NewApp(sess, s.cfg.Store, s.cfg.Hub, onSend, s.cfg.SudokuGame, s.cfg.PollStore)
