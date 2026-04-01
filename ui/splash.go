@@ -67,23 +67,27 @@ type spark struct {
 type splashTickMsg time.Time
 
 type Splash struct {
-	nickname    string
-	fingerprint string
-	flair       bool
-	width       int
-	height      int
-	frame       int
-	sparks      []spark
-	rng         *rand.Rand
-	inited      bool
+	tavernDomain string
+	tagline      string
+	nickname     string
+	fingerprint  string
+	flair        bool
+	width        int
+	height       int
+	frame        int
+	sparks       []spark
+	rng          *rand.Rand
+	inited       bool
 }
 
-func NewSplash(nickname, fingerprint string, flair bool) Splash {
+func NewSplash(nickname, fingerprint string, flair bool, tavernDomain, tagline string) Splash {
 	return Splash{
-		nickname:    nickname,
-		fingerprint: fingerprint,
-		flair:       flair,
-		rng:         rand.New(rand.NewSource(time.Now().UnixNano())),
+		tavernDomain: tavernDomain,
+		tagline:      tagline,
+		nickname:     nickname,
+		fingerprint:  fingerprint,
+		flair:        flair,
+		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
@@ -255,7 +259,7 @@ func (s Splash) View() tea.View {
 
 	v := tea.NewView(strings.Join(screenLines, "\n"))
 	v.AltScreen = true
-	v.WindowTitle = "tavrn.sh"
+	v.WindowTitle = s.tavernDomain
 	return v
 }
 
@@ -268,12 +272,15 @@ func (s Splash) renderCard() string {
 	b.WriteString(diag)
 	b.WriteString("\n\n")
 
-	title := GradientText("TAVRN.SH", pair[1], pair[0], true)
-	b.WriteString(centerText(title, 8, 44))
+	title := GradientText(s.tavernDomain, pair[1], pair[0], true)
+	b.WriteString(centerText(title, len(s.tavernDomain), 44))
 	b.WriteString("\n")
-	sub := SplashSubtitleStyle.Render("where strangers become regulars")
-	b.WriteString(centerText(sub, 30, 44))
-	b.WriteString("\n\n")
+	if s.tagline != "" {
+		sub := SplashSubtitleStyle.Render(s.tagline)
+		b.WriteString(centerText(sub, len(s.tagline), 44))
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
 
 	// Render art centered in a single color to preserve alignment
 	artStyle := lipgloss.NewStyle().Foreground(pair[0])

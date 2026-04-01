@@ -89,27 +89,58 @@ type App struct {
 	transSpring harmonica.Spring
 	transPos    float64 // 0.0 = fully hidden, 1.0 = fully revealed
 	transVel    float64
+
+	// Config-driven branding
+	tavernName       string
+	tavernDomain     string
+	tagline          string
+	ownerName        string
+	ownerFingerprint string
+	firstRoom        string
+	roomTypes        map[string]string
 }
 
-func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(session.Msg), game *sudoku.Game, ps *poll.Store) App {
+// roomByType returns the name of the first room with the given type.
+func (a App) roomByType(roomType string) string {
+	for name, rt := range a.roomTypes {
+		if rt == roomType {
+			return name
+		}
+	}
+	return ""
+}
+
+func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(session.Msg),
+	game *sudoku.Game, ps *poll.Store,
+	tavernName, tavernDomain, tagline, ownerName, ownerFingerprint, firstRoom string,
+	roomTypes map[string]string) App {
 	app := App{
-		state:      stateSplash,
-		splash:     NewSplash(sess.Nickname, sess.Fingerprint, sess.Flair),
-		session:    sess,
-		chat:       NewChatView(),
-		topBar:     NewTopBar(),
-		bottomBar:  NewBottomBar(),
-		rooms:      NewRoomsPanel(),
-		online:     NewOnlinePanel(),
-		gallery:    NewGalleryView(sess.Fingerprint),
-		store:      st,
-		hub:        h,
-		onSend:     onSend,
-		modal:      ModalNone,
-		sudokuGame: game,
-		pollStore:  ps,
+		state:            stateSplash,
+		splash:           NewSplash(sess.Nickname, sess.Fingerprint, sess.Flair, tavernDomain, tagline),
+		session:          sess,
+		chat:             NewChatView(),
+		topBar:           TopBar{TavernName: tavernName, Room: firstRoom},
+		bottomBar:        NewBottomBar(),
+		rooms:            NewRoomsPanel(),
+		online:           NewOnlinePanel(),
+		gallery:          NewGalleryView(sess.Fingerprint),
+		store:            st,
+		hub:              h,
+		onSend:           onSend,
+		modal:            ModalNone,
+		sudokuGame:       game,
+		pollStore:        ps,
+		tavernName:       tavernName,
+		tavernDomain:     tavernDomain,
+		tagline:          tagline,
+		ownerName:        ownerName,
+		ownerFingerprint: ownerFingerprint,
+		firstRoom:        firstRoom,
+		roomTypes:        roomTypes,
 	}
 	app.chat.SetOwnNickname(sess.Nickname)
+	app.chat.OwnerName = ownerName
+	app.chat.OwnerFingerprint = ownerFingerprint
 	drinkCount, _ := st.GetDrinkCount(sess.Fingerprint)
 	app.tankard = NewTankardView()
 	app.tankard.count = drinkCount
@@ -203,9 +234,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case PostNoteMsg:
 		a.modal = ModalNone
-		if a.session.Room != "gallery" {
-			// Auto-join gallery
-			a.switchRoom("gallery")
+		galleryRoom := a.roomByType("gallery")
+		if a.session.Room != galleryRoom {
+			a.switchRoom(galleryRoom)
 		}
 		text := sanitize.CleanNote(msg.Text)
 		x, y := a.gallery.RandomPosition()
@@ -221,7 +252,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.gallery.AddNote(note)
 		a.onSend(session.Msg{
 			Type: session.MsgNoteCreate,
-			Room: "gallery",
+			Room: galleryRoom,
 			Note: &session.NoteData{
 				ID: noteID, X: x, Y: y,
 				Text: text, Nick: a.session.Nickname, Color: a.session.ColorIndex,
@@ -249,7 +280,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.gallery.RemoveNote(msg.NoteID)
 		a.onSend(session.Msg{
 			Type: session.MsgNoteDelete,
-			Room: "gallery",
+			Room: a.roomByType("gallery"),
 			Note: &session.NoteData{ID: msg.NoteID},
 		})
 		return a, nil
@@ -258,7 +289,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.store.MoveNote(msg.NoteID, msg.X, msg.Y, a.session.Fingerprint)
 		a.onSend(session.Msg{
 			Type: session.MsgNoteMove,
-			Room: "gallery",
+			Room: a.roomByType("gallery"),
 			Note: &session.NoteData{ID: msg.NoteID, X: msg.X, Y: msg.Y},
 		})
 		return a, nil
@@ -345,7 +376,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		switch keyMsg.String() {
 		case "f1", "?":
-			if a.session.Room == "gallery" || !a.chat.HasInput() {
+			if a.roomTypes[a.session.Room] == "gallery" || !a.chat.HasInput() {
 				a.modal = ModalHelp
 				a.helpModal = NewHelpModal()
 				return a, nil
@@ -406,7 +437,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Gallery room: single-key shortcuts + mouse
-	if a.session.Room == "gallery" {
+	if a.roomTypes[a.session.Room] == "gallery" {
 		switch msg := msg.(type) {
 		case tea.KeyPressMsg:
 			switch msg.String() {
@@ -454,7 +485,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Games room: sudoku view
-	if a.session.Room == "games" && a.sudokuView != nil {
+	if a.roomTypes[a.session.Room] == "games" && a.sudokuView != nil {
 		switch msg := msg.(type) {
 		case tea.KeyPressMsg:
 			switch msg.String() {
@@ -464,7 +495,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if a.sudokuView.FocusChat() {
 					// ESC in chat mode just blurs chat (handled by sudoku view)
 				} else {
-					a.switchRoom("lounge")
+					a.switchRoom(a.firstRoom)
 					return a, nil
 				}
 			case "enter":
@@ -489,7 +520,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.sudokuView = &sv
 		// Check if puzzle is solved
 		if a.sudokuGame.IsSolved() {
-			a.sudokuView.AddMessage(chat.NewSystemMessage("games", "Puzzle solved! New puzzle starting..."))
+			a.sudokuView.AddMessage(chat.NewSystemMessage(a.session.Room, "Puzzle solved! New puzzle starting..."))
 			a.sudokuGame.Reset()
 		}
 		return a, cmd
@@ -532,7 +563,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			names = append(names, s.Nickname)
 		}
 	}
-	if a.session.Room == "lounge" {
+	if a.session.Room == a.firstRoom {
 		names = append(names, "bartender")
 	}
 	a.chat.UpdateMentionPopup(names)
@@ -571,7 +602,7 @@ func (a App) updateModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.gallery.RemoveNote(noteID)
 				a.onSend(session.Msg{
 					Type: session.MsgNoteDelete,
-					Room: "gallery",
+					Room: a.roomByType("gallery"),
 					Note: &session.NoteData{ID: noteID},
 				})
 				return a, nil
@@ -689,7 +720,7 @@ func (a *App) handleCommand(parsed chat.ParseResult) {
 			PollID:      p.ID,
 		})
 	case "addssh":
-		if !identity.IsOwner(a.session.Nickname) {
+		if !identity.IsOwnerFingerprint(a.session.Fingerprint, a.ownerFingerprint) {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Only the tavern owner can do that."))
 			return
 		}
@@ -705,7 +736,7 @@ func (a *App) handleCommand(parsed chat.ParseResult) {
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
 			fmt.Sprintf("Added: %s", addr)))
 	case "rmssh":
-		if !identity.IsOwner(a.session.Nickname) {
+		if !identity.IsOwnerFingerprint(a.session.Fingerprint, a.ownerFingerprint) {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Only the tavern owner can do that."))
 			return
 		}
@@ -739,7 +770,7 @@ func (a *App) handleHubMsg(msg session.Msg) {
 			Room:       msg.Room,
 			Timestamp:  ts,
 		}
-		if a.session.Room == "games" && a.sudokuView != nil {
+		if a.roomTypes[a.session.Room] == "games" && a.sudokuView != nil {
 			a.sudokuView.AddMessage(chatMsg)
 		} else {
 			a.chat.AddMessage(chatMsg)
@@ -794,10 +825,9 @@ func (a *App) handleHubMsg(msg session.Msg) {
 	case session.MsgRoomRemoved:
 		removedRoom := msg.Text
 		if a.session.Room == removedRoom {
-			// We're in the removed room — move to lounge
-			a.switchRoom("lounge")
-			a.chat.AddMessage(chat.NewSystemMessage("lounge",
-				fmt.Sprintf("Room #%s was removed. You've been moved to #lounge.", removedRoom)))
+			a.switchRoom(a.firstRoom)
+			a.chat.AddMessage(chat.NewSystemMessage(a.firstRoom,
+				fmt.Sprintf("Room #%s was removed. You've been moved to #%s.", removedRoom, a.firstRoom)))
 		} else {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
 				fmt.Sprintf("Room #%s has been removed", removedRoom)))
@@ -863,7 +893,7 @@ func (a *App) detectMentions(msg session.Msg) {
 	a.mentions = append(a.mentions, m)
 
 	// Toast notification if not currently viewing that room's chat
-	if msg.Room != a.session.Room || a.session.Room == "gallery" || a.session.Room == "games" {
+	if msg.Room != a.session.Room || a.roomTypes[a.session.Room] == "gallery" || a.roomTypes[a.session.Room] == "games" {
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
 			fmt.Sprintf("%s mentioned you in #%s", msg.Nickname, msg.Room)))
 	}
@@ -969,13 +999,13 @@ func (a *App) switchRoom(target string) {
 	a.doLayout()
 	a.chat.SetOwnNickname(a.session.Nickname)
 
-	if target == "gallery" {
+	if a.roomTypes[target] == "gallery" {
 		// Load gallery notes
 		notes, _ := a.store.AllNotes()
 		a.gallery = NewGalleryView(a.session.Fingerprint)
 		a.doLayout() // sets size and screen offset
 		a.gallery.LoadNotes(notes)
-	} else if target == "games" && a.sudokuGame != nil {
+	} else if a.roomTypes[target] == "games" && a.sudokuGame != nil {
 		sv := NewSudokuView(a.sudokuGame, a.session.Fingerprint, a.session.Nickname, a.session.ColorIndex)
 		a.sudokuView = &sv
 		a.doLayout()
@@ -1061,7 +1091,7 @@ func (a *App) doLayout() {
 
 	a.topBar.Width = a.width
 	a.bottomBar.Width = a.width
-	a.bottomBar.IsGallery = (a.session.Room == "gallery")
+	a.bottomBar.IsGallery = (a.roomTypes[a.session.Room] == "gallery")
 	a.rooms.Width = roomsWidth
 	a.rooms.Height = mainHeight
 	a.online.Width = onlineWidth
@@ -1103,14 +1133,14 @@ func (a App) View() tea.View {
 	var onlineNames []string
 	for _, s := range sessions {
 		name := s.Nickname
-		if identity.IsOwner(s.Nickname) {
-			name = identity.OwnerDisplayName()
+		if identity.IsOwnerFingerprint(s.Fingerprint, a.ownerFingerprint) {
+			name = identity.OwnerDisplayName(a.ownerName)
 		} else if s.Flair {
 			name = "~" + name
 		}
 		onlineNames = append(onlineNames, name)
 	}
-	if a.session.Room == "lounge" {
+	if a.session.Room == a.firstRoom {
 		onlineNames = append(onlineNames, "◆ bartender")
 	}
 	sort.Strings(onlineNames)
@@ -1147,9 +1177,9 @@ func (a App) View() tea.View {
 
 	// Main content: gallery, sudoku, or chat depending on room
 	var centerView string
-	if a.session.Room == "gallery" {
+	if a.roomTypes[a.session.Room] == "gallery" {
 		centerView = a.gallery.View()
-	} else if a.session.Room == "games" && a.sudokuView != nil {
+	} else if a.roomTypes[a.session.Room] == "games" && a.sudokuView != nil {
 		centerView = a.sudokuView.View()
 	} else {
 		centerView = a.chat.View()
@@ -1201,10 +1231,10 @@ func (a App) View() tea.View {
 	v := tea.NewView(base)
 	v.AltScreen = true
 	// Only capture mouse in gallery (for drag). Other rooms allow text selection.
-	if a.session.Room == "gallery" {
+	if a.roomTypes[a.session.Room] == "gallery" {
 		v.MouseMode = tea.MouseModeCellMotion
 	}
-	v.WindowTitle = "tavrn.sh"
+	v.WindowTitle = a.tavernDomain
 	return v
 }
 

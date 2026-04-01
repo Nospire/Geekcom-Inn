@@ -330,8 +330,6 @@ func runServer() {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
 	}
-	_ = cfg // used in later tasks
-
 	st, err := store.New(resolvedDBPath())
 	if err != nil {
 		log.Fatalf("store: %v", err)
@@ -389,15 +387,22 @@ func runServer() {
 
 	port := getPort()
 	srv, err := server.New(server.Config{
-		Host:          "0.0.0.0",
-		Port:          port,
-		HostKeyPath:   ".ssh/id_ed25519",
-		Store:         st,
-		Hub:           h,
-		JukeboxEngine: jukeboxEngine,
-		SudokuGame:    sudokuGame,
-		PollStore:     pollStore,
-		Bartender:     bt,
+		Host:             "0.0.0.0",
+		Port:             port,
+		HostKeyPath:      ".ssh/id_ed25519",
+		Store:            st,
+		Hub:              h,
+		JukeboxEngine:    jukeboxEngine,
+		SudokuGame:       sudokuGame,
+		PollStore:        pollStore,
+		Bartender:        bt,
+		TavernName:       cfg.Tavern.Name,
+		TavernDomain:     cfg.Tavern.Domain,
+		Tagline:          cfg.Tavern.Tagline,
+		OwnerName:        cfg.Owner.Name,
+		OwnerFingerprint: cfg.Owner.Fingerprint,
+		FirstRoom:        cfg.FirstRoom(),
+		RoomTypes:        cfg.RoomTypeMap(),
 	})
 	if err != nil {
 		log.Fatalf("server: %v", err)
@@ -431,7 +436,7 @@ func runServer() {
 		}
 	}()
 
-	log.Printf("tavrn.sh is open. ssh localhost -p %d", port)
+	log.Printf("%s is open. ssh localhost -p %d", cfg.Tavern.Domain, port)
 
 	<-done
 	log.Println("tavern closing...")

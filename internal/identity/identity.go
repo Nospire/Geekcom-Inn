@@ -41,12 +41,12 @@ func HasFlair(visitCount int) bool {
 	return visitCount >= 3
 }
 
-// IsOwner returns true if the nickname is the tavern owner.
-func IsOwner(nickname string) bool {
-	return nickname == "neur0map"
+// IsOwnerFingerprint returns true if the fingerprint matches the configured owner.
+func IsOwnerFingerprint(fingerprint, ownerFingerprint string) bool {
+	return fingerprint != "" && fingerprint == ownerFingerprint
 }
 
 // OwnerDisplayName returns the special display name for the owner.
-func OwnerDisplayName() string {
-	return "★ neur0map"
+func OwnerDisplayName(ownerName string) string {
+	return "★ " + ownerName
 }

@@ -45,7 +45,9 @@ type ChatView struct {
 	mentionNames  []string // filtered results from fuzzy.Match
 	mentionCursor int      // selected index
 
-	ownNickname string
+	ownNickname      string
+	OwnerName        string
+	OwnerFingerprint string
 }
 
 func NewChatView() ChatView {
@@ -217,8 +219,8 @@ func (c *ChatView) renderMessages() {
 
 			// Nick + timestamp header
 			displayNick := msg.Nickname
-			if identity.IsOwner(msg.Nickname) {
-				displayNick = identity.OwnerDisplayName()
+			if identity.IsOwnerFingerprint(msg.Fingerprint, c.OwnerFingerprint) {
+				displayNick = identity.OwnerDisplayName(c.OwnerName)
 			}
 			nick := NickStyle(msg.ColorIndex).Render(displayNick)
 			ts := formatTimestamp(msg.Timestamp, now)

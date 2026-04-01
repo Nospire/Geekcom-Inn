@@ -25,15 +25,22 @@ import (
 )
 
 type Config struct {
-	Host          string
-	Port          int
-	HostKeyPath   string
-	Store         *store.Store
-	Hub           *hub.Hub
-	JukeboxEngine *jukebox.Engine
-	SudokuGame    *sudoku.Game
-	PollStore     *poll.Store
-	Bartender     *bartender.Bartender
+	Host             string
+	Port             int
+	HostKeyPath      string
+	Store            *store.Store
+	Hub              *hub.Hub
+	JukeboxEngine    *jukebox.Engine
+	SudokuGame       *sudoku.Game
+	PollStore        *poll.Store
+	Bartender        *bartender.Bartender
+	TavernName       string
+	TavernDomain     string
+	Tagline          string
+	OwnerName        string
+	OwnerFingerprint string
+	FirstRoom        string
+	RoomTypes        map[string]string
 }
 
 type Server struct {
@@ -103,27 +110,29 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 	colorIndex := identity.ColorIndex(fingerprint)
 	flair := identity.HasFlair(visitCount)
 
+	firstRoom := s.cfg.FirstRoom
+
 	sess := session.New(fingerprint, nickname, colorIndex, flair)
 	s.cfg.Hub.Register(sess)
 
 	go func() {
 		<-sshSess.Context().Done()
 		s.cfg.Hub.Unregister(sess)
-		s.cfg.Hub.Broadcast("lounge", session.Msg{
+		s.cfg.Hub.Broadcast(firstRoom, session.Msg{
 			Type: session.MsgUserLeft,
 			Text: fmt.Sprintf("%s left the tavern", sess.Nickname),
-			Room: "lounge",
+			Room: firstRoom,
 		})
 	}()
 
-	s.cfg.Hub.Broadcast("lounge", session.Msg{
+	s.cfg.Hub.Broadcast(firstRoom, session.Msg{
 		Type: session.MsgUserJoined,
 		Text: fmt.Sprintf("%s joined the tavern", nickname),
-		Room: "lounge",
+		Room: firstRoom,
 	})
 
 	// Send recent chat history
-	history, _ := s.cfg.Store.RecentMessages("lounge", 50)
+	history, _ := s.cfg.Store.RecentMessages(firstRoom, 50)
 	for _, m := range history {
 		msgType := session.MsgChat
 		if m.IsSystem {
@@ -142,7 +151,7 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 
 	tavernState := func() bartender.TavernState {
 		wc, _ := s.cfg.Store.WeeklyVisitorCount()
-		sessions := s.cfg.Hub.Sessions("lounge")
+		sessions := s.cfg.Hub.Sessions(firstRoom)
 		var names []string
 		for _, sess := range sessions {
 			names = append(names, sess.Nickname)
@@ -153,12 +162,12 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 			TimeUTC:         time.Now().UTC(),
 			WeeklyVisitors:  wc,
 			AllTimeVisitors: s.cfg.Store.AllTimeVisitorCount(),
-			ActivePolls:     len(s.cfg.PollStore.ActiveRoomPolls("lounge")),
+			ActivePolls:     len(s.cfg.PollStore.ActiveRoomPolls(firstRoom)),
 		}
 	}
 
 	gatherContext := func() []bartender.ChatMsg {
-		history, _ := s.cfg.Store.RecentMessages("lounge", 50)
+		history, _ := s.cfg.Store.RecentMessages(firstRoom, 50)
 		var ctx []bartender.ChatMsg
 		for _, m := range history {
 			if !m.IsSystem {
@@ -174,10 +183,10 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 			Nickname:   "bartender",
 			ColorIndex: 6,
 			Text:       reply,
-			Room:       "lounge",
+			Room:       firstRoom,
 		}
-		s.cfg.Store.SaveMessage("lounge", "", "bartender", 6, reply, false)
-		s.cfg.Hub.Broadcast("lounge", btMsg)
+		s.cfg.Store.SaveMessage(firstRoom, "", "bartender", 6, reply, false)
+		s.cfg.Hub.Broadcast(firstRoom, btMsg)
 	}
 
 	onSend := func(msg session.Msg) {
@@ -202,16 +211,16 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 					go func() {
 						ticker := time.NewTicker(3 * time.Second)
 						defer ticker.Stop()
-						s.cfg.Hub.Broadcast("lounge", session.Msg{
-							Type: session.MsgTyping, Nickname: "bartender", Room: "lounge",
+						s.cfg.Hub.Broadcast(firstRoom, session.Msg{
+							Type: session.MsgTyping, Nickname: "bartender", Room: firstRoom,
 						})
 						for {
 							select {
 							case <-done:
 								return
 							case <-ticker.C:
-								s.cfg.Hub.Broadcast("lounge", session.Msg{
-									Type: session.MsgTyping, Nickname: "bartender", Room: "lounge",
+								s.cfg.Hub.Broadcast(firstRoom, session.Msg{
+									Type: session.MsgTyping, Nickname: "bartender", Room: firstRoom,
 								})
 							}
 						}
@@ -229,23 +238,23 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 			return
 		}
 
-		// Unprompted remark — only on lounge messages
-		if msg.Room == "lounge" && s.cfg.Bartender.ShouldRemark() {
+		// Unprompted remark — only on first-room messages
+		if msg.Room == firstRoom && s.cfg.Bartender.ShouldRemark() {
 			go func() {
 				done := make(chan struct{})
 				go func() {
 					ticker := time.NewTicker(3 * time.Second)
 					defer ticker.Stop()
-					s.cfg.Hub.Broadcast("lounge", session.Msg{
-						Type: session.MsgTyping, Nickname: "bartender", Room: "lounge",
+					s.cfg.Hub.Broadcast(firstRoom, session.Msg{
+						Type: session.MsgTyping, Nickname: "bartender", Room: firstRoom,
 					})
 					for {
 						select {
 						case <-done:
 							return
 						case <-ticker.C:
-							s.cfg.Hub.Broadcast("lounge", session.Msg{
-								Type: session.MsgTyping, Nickname: "bartender", Room: "lounge",
+							s.cfg.Hub.Broadcast(firstRoom, session.Msg{
+								Type: session.MsgTyping, Nickname: "bartender", Room: firstRoom,
 							})
 						}
 					}
@@ -261,7 +270,10 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		}
 	}
 
-	model := ui.NewApp(sess, s.cfg.Store, s.cfg.Hub, onSend, s.cfg.SudokuGame, s.cfg.PollStore)
+	model := ui.NewApp(sess, s.cfg.Store, s.cfg.Hub, onSend, s.cfg.SudokuGame, s.cfg.PollStore,
+		s.cfg.TavernName, s.cfg.TavernDomain, s.cfg.Tagline,
+		s.cfg.OwnerName, s.cfg.OwnerFingerprint, s.cfg.FirstRoom,
+		s.cfg.RoomTypes)
 	return model, nil
 }
 
@@ -270,7 +282,7 @@ func (s *Server) Start(ctx context.Context) error {
 		go s.cfg.JukeboxEngine.Run(ctx)
 	}
 
-	log.Printf("tavrn.sh listening on %s:%d", s.cfg.Host, s.cfg.Port)
+	log.Printf("%s listening on %s:%d", s.cfg.TavernDomain, s.cfg.Host, s.cfg.Port)
 	return s.wish.ListenAndServe()
 }
 

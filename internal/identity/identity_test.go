@@ -60,6 +60,27 @@ func TestColorIndex(t *testing.T) {
 	}
 }
 
+func TestIsOwnerFingerprint(t *testing.T) {
+	if !IsOwnerFingerprint("abc123", "abc123") {
+		t.Error("matching fingerprint should be owner")
+	}
+	if IsOwnerFingerprint("abc123", "xyz789") {
+		t.Error("non-matching fingerprint should not be owner")
+	}
+	if IsOwnerFingerprint("", "abc123") {
+		t.Error("empty fingerprint should not be owner")
+	}
+}
+
+func TestOwnerDisplayName(t *testing.T) {
+	if OwnerDisplayName("neur0map") != "★ neur0map" {
+		t.Errorf("got %q", OwnerDisplayName("neur0map"))
+	}
+	if OwnerDisplayName("alice") != "★ alice" {
+		t.Errorf("got %q", OwnerDisplayName("alice"))
+	}
+}
+
 func TestHasFlair(t *testing.T) {
 	if HasFlair(2) {
 		t.Error("2 visits should not have flair")

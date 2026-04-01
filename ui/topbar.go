@@ -8,6 +8,7 @@ import (
 )
 
 type TopBar struct {
+	TavernName   string
 	Room         string
 	OnlineCount  int
 	WeeklyCount  int
@@ -15,17 +16,13 @@ type TopBar struct {
 	Width        int
 }
 
-func NewTopBar() TopBar {
-	return TopBar{Room: "lounge"}
-}
-
 func (t TopBar) View() string {
 	if t.Width < 20 {
 		return ""
 	}
 
-	// Line 1: Diagonal fill with TAVRN.SH embedded
-	label := " TAVRN.SH "
+	// Line 1: Diagonal fill with tavern name embedded
+	label := fmt.Sprintf(" %s ", t.TavernName)
 	fillTotal := t.Width - len(label)
 	leftN := fillTotal / 2
 	rightN := fillTotal - leftN
