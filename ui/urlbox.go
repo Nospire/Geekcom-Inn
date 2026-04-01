@@ -42,20 +42,3 @@ func renderURLBox(rawURL string) string {
 
 	return b.String()
 }
-
-// renderTextWithURLs renders message text, replacing URLs with styled boxes.
-// Returns the text lines with URLs extracted and rendered as boxes below.
-func renderTextWithURLs(text string, wrapWidth int) []string {
-	urls := extractURLs(text)
-	if len(urls) == 0 {
-		return nil
-	}
-
-	var boxes []string
-	for _, u := range urls {
-		for _, line := range strings.Split(renderURLBox(u), "\n") {
-			boxes = append(boxes, "      "+line)
-		}
-	}
-	return boxes
-}
