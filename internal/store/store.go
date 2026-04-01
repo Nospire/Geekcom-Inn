@@ -121,6 +121,8 @@ func (s *Store) migrate() error {
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
 	}
+	// Add embedding column to bartender_memories if missing (migration).
+	s.db.Exec(`ALTER TABLE bartender_memories ADD COLUMN embedding TEXT`)
 	return s.seedRooms()
 }
 
