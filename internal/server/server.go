@@ -153,6 +153,13 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		if msg.Type == session.MsgChat && s.cfg.Bartender != nil && bartender.ShouldRespond(msg.Text, msg.Room) {
 			if s.cfg.Bartender.CanRespond(msg.Fingerprint) {
 				go func() {
+					// Show "bartender is typing..."
+					s.cfg.Hub.Broadcast("lounge", session.Msg{
+						Type:     session.MsgTyping,
+						Nickname: "bartender",
+						Room:     "lounge",
+					})
+
 					// Gather recent context
 					history, _ := s.cfg.Store.RecentMessages("lounge", 20)
 					var context []bartender.ChatMsg

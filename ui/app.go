@@ -532,6 +532,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			names = append(names, s.Nickname)
 		}
 	}
+	if a.session.Room == "lounge" {
+		names = append(names, "bartender")
+	}
 	a.chat.UpdateMentionPopup(names)
 
 	return a, cmd
