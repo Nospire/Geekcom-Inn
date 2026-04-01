@@ -63,7 +63,7 @@ func CleanNick(nick string) (string, error) {
 	if ReservedNicks[strings.ToLower(cleaned)] {
 		return "", errors.New("that nickname is reserved")
 	}
-	if ownerNick != "" && strings.ToLower(cleaned) == strings.ToLower(ownerNick) {
+	if ownerNick != "" && strings.EqualFold(cleaned, ownerNick) {
 		return "", errors.New("that nickname is reserved")
 	}
 	return cleaned, nil
