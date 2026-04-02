@@ -1055,6 +1055,8 @@ func (a *App) switchRoom(target string) {
 
 	// Clear and load new room content
 	a.chat = NewChatView()
+	a.chat.OwnerName = a.ownerName
+	a.chat.OwnerFingerprint = a.ownerFingerprint
 	a.doLayout()
 	a.chat.SetOwnNickname(a.session.Nickname)
 
@@ -1085,7 +1087,31 @@ func (a *App) switchRoom(target string) {
 	} else {
 		// Load chat history
 		history, _ := a.store.RecentMessages(target, 50)
+		gifCount := 0
 		for _, m := range history {
+			if m.GifURL != "" && a.gifClient != nil && gifCount < 10 {
+				data, err := a.gifClient.FetchGIF(m.GifURL)
+				if err == nil {
+					decoded, decErr := gif.Decode(data)
+					if decErr == nil {
+						frames := gif.RenderFrames(decoded.Frames, gifModalRenderWidth)
+						a.chat.AddMessage(chat.Message{
+							Nickname:   m.Nickname,
+							ColorIndex: m.ColorIndex,
+							Text:       m.Text,
+							Room:       m.Room,
+							Timestamp:  m.CreatedAt,
+							IsGif:      true,
+							GifFrames:  frames,
+							GifDelays:  decoded.Delays,
+							GifTitle:   m.Text,
+							GifURL:     m.GifURL,
+						})
+						gifCount++
+						continue
+					}
+				}
+			}
 			msg := chat.Message{
 				Nickname:   m.Nickname,
 				ColorIndex: m.ColorIndex,
