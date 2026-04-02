@@ -150,18 +150,14 @@ func renderToString(img *image.RGBA, width, height int) string {
 			br8, bg8, bb8 := uint8(br>>8), uint8(bg>>8), uint8(bb>>8)
 
 			if ta>>8 < 128 && ba>>8 < 128 {
-				// Both transparent
 				b.WriteRune(' ')
 			} else if ta>>8 < 128 {
-				// Top transparent, bottom visible — use lower half block
-				b.WriteString(fmt.Sprintf("\033[38;2;%d;%d;%dm▄", br8, bg8, bb8))
+				fmt.Fprintf(&b, "\033[38;2;%d;%d;%dm▄", br8, bg8, bb8)
 			} else if ba>>8 < 128 {
-				// Top visible, bottom transparent — use upper half block
-				b.WriteString(fmt.Sprintf("\033[38;2;%d;%d;%dm▀", tr8, tg8, tb8))
+				fmt.Fprintf(&b, "\033[38;2;%d;%d;%dm▀", tr8, tg8, tb8)
 			} else {
-				// Both visible — upper half block with fg=top, bg=bottom
-				b.WriteString(fmt.Sprintf("\033[38;2;%d;%d;%dm\033[48;2;%d;%d;%dm▀",
-					tr8, tg8, tb8, br8, bg8, bb8))
+				fmt.Fprintf(&b, "\033[38;2;%d;%d;%dm\033[48;2;%d;%d;%dm▀",
+					tr8, tg8, tb8, br8, bg8, bb8)
 			}
 		}
 	}
