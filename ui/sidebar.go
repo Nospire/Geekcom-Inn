@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 )
@@ -173,6 +174,12 @@ func (o OnlinePanel) View() string {
 		}
 	}
 
+	// World clock
+	b.WriteString("\n")
+	b.WriteString(dimmer.Render(strings.Repeat("─", o.Width-4)))
+	b.WriteString("\n")
+	b.WriteString(renderWorldClock(o.Width - 4))
+
 	usersContent := b.String()
 
 	// Render tankard below users if there's room
@@ -204,4 +211,47 @@ func (o OnlinePanel) View() string {
 		Height(o.Height).
 		MaxHeight(o.Height).
 		Render(usersContent)
+}
+
+func renderWorldClock(maxW int) string {
+	dim := lipgloss.NewStyle().Foreground(ColorDim)
+	dimmer := lipgloss.NewStyle().Foreground(ColorDimmer)
+	accent := lipgloss.NewStyle().Foreground(ColorAmber)
+
+	now := time.Now().UTC()
+
+	type city struct {
+		label  string
+		offset int // hours from UTC
+	}
+	cities := []city{
+		{"NYC", -4},
+		{"CHI", -5},
+		{"LDN", 0},
+		{"BER", 2},
+		{"TYO", 9},
+	}
+
+	var b strings.Builder
+	for _, c := range cities {
+		t := now.Add(time.Duration(c.offset) * time.Hour)
+		hour := t.Format("3:04")
+		ampm := t.Format("pm")
+
+		h := t.Hour()
+		var bar string
+		if h >= 6 && h < 18 {
+			bar = accent.Render("*")
+		} else {
+			bar = dimmer.Render(".")
+		}
+
+		b.WriteString(bar + " ")
+		b.WriteString(dim.Render(c.label + " "))
+		b.WriteString(accent.Render(hour))
+		b.WriteString(dimmer.Render(ampm))
+		b.WriteString("\n")
+	}
+
+	return b.String()
 }
