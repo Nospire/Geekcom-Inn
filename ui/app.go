@@ -1364,6 +1364,7 @@ func (a App) View() tea.View {
 		})
 	}
 	a.rooms.Rooms = roomInfos
+	a.rooms.RoomTypes = a.roomTypes
 	a.rooms.ActivityCounts = a.store.RecentActivityCounts(10)
 
 	// SSH links for sidebar

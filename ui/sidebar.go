@@ -25,75 +25,104 @@ type RoomsPanel struct {
 	MentionCounts  map[string]int // room name → unread mention count
 	ActivityCounts map[string]int // room name → messages in last 10min
 	SSHLinks       []string
+	RoomTypes      map[string]string // room name → type
 }
 
 func NewRoomsPanel() RoomsPanel {
 	return RoomsPanel{CurrentRoom: "lounge"}
 }
 
-func (r RoomsPanel) View() string {
-	header := lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
+func (r RoomsPanel) renderRoom(rm RoomInfo, contentW int) string {
+	isCurrent := rm.Name == r.CurrentRoom
+	name := "#" + rm.Name
 
-	var b strings.Builder
-	b.WriteString(header.Render("ROOMS"))
-	b.WriteString("\n")
-	sep := lipgloss.NewStyle().Foreground(ColorDimmer).Render(
-		strings.Repeat("─", r.Width-4))
-	b.WriteString(sep)
-	b.WriteString("\n")
-
-	contentW := r.Width - 3 // border(1) + paddingLR(2)
-
-	for _, rm := range r.Rooms {
-		isCurrent := rm.Name == r.CurrentRoom
-		name := "#" + rm.Name
-
-		// Build right-aligned section: online count + optional badges
-		countStr := fmt.Sprintf("%d", rm.Count)
-		var badgeStr string
-		var badgeW int
-		if !isCurrent && r.ActivityCounts != nil {
-			if ac := r.ActivityCounts[rm.Name]; ac > 0 {
-				part := fmt.Sprintf(" %d", ac)
-				badgeStr += lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render(part)
-				badgeW += len(part)
-			}
+	countStr := fmt.Sprintf("%d", rm.Count)
+	var badgeStr string
+	var badgeW int
+	if !isCurrent && r.ActivityCounts != nil {
+		if ac := r.ActivityCounts[rm.Name]; ac > 0 {
+			part := fmt.Sprintf(" %d", ac)
+			badgeStr += lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render(part)
+			badgeW += len(part)
 		}
-		if r.MentionCounts != nil {
-			if mc := r.MentionCounts[rm.Name]; mc > 0 {
-				part := fmt.Sprintf(" @%d", mc)
-				badgeStr += lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).Render(part)
-				badgeW += len(part)
-			}
-		}
-
-		// indicator(1) + name + gap(>=1) + count + badges = contentW
-		rightW := len(countStr) + badgeW
-		gap := contentW - 1 - lipgloss.Width(name) - rightW
-		if gap < 1 {
-			gap = 1
-		}
-		padding := strings.Repeat(" ", gap)
-
-		if isCurrent {
-			indicator := lipgloss.NewStyle().Foreground(ColorHighlight).Render("▸")
-			roomName := lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).Render(name)
-			roomCount := lipgloss.NewStyle().Foreground(ColorDim).Render(countStr)
-			b.WriteString(indicator + roomName + padding + roomCount + badgeStr + "\n")
-		} else {
-			roomName := lipgloss.NewStyle().Foreground(ColorSand).Render(name)
-			roomCount := lipgloss.NewStyle().Foreground(ColorDimmer).Render(countStr)
-			b.WriteString(" " + roomName + padding + roomCount + badgeStr + "\n")
+	}
+	if r.MentionCounts != nil {
+		if mc := r.MentionCounts[rm.Name]; mc > 0 {
+			part := fmt.Sprintf(" @%d", mc)
+			badgeStr += lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).Render(part)
+			badgeW += len(part)
 		}
 	}
 
-	// ── Other SSH section ──
+	rightW := len(countStr) + badgeW
+	gap := contentW - 1 - lipgloss.Width(name) - rightW
+	if gap < 1 {
+		gap = 1
+	}
+	padding := strings.Repeat(" ", gap)
+
+	if isCurrent {
+		indicator := lipgloss.NewStyle().Foreground(ColorHighlight).Render("▸")
+		roomName := lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).Render(name)
+		roomCount := lipgloss.NewStyle().Foreground(ColorDim).Render(countStr)
+		return indicator + roomName + padding + roomCount + badgeStr + "\n"
+	}
+	roomName := lipgloss.NewStyle().Foreground(ColorSand).Render(name)
+	roomCount := lipgloss.NewStyle().Foreground(ColorDimmer).Render(countStr)
+	return " " + roomName + padding + roomCount + badgeStr + "\n"
+}
+
+func (r RoomsPanel) View() string {
+	header := lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
+	dimmer := lipgloss.NewStyle().Foreground(ColorDimmer)
+	green := lipgloss.NewStyle().Foreground(ColorGreen).Bold(true)
+
+	var b strings.Builder
+	sep := dimmer.Render(strings.Repeat("─", r.Width-4))
+	contentW := r.Width - 3
+
+	// Regular rooms
+	b.WriteString(header.Render("ROOMS"))
+	b.WriteString("\n")
+	b.WriteString(sep)
+	b.WriteString("\n")
+
+	for _, rm := range r.Rooms {
+		if r.RoomTypes != nil && r.RoomTypes[rm.Name] == "wargame" {
+			continue
+		}
+		b.WriteString(r.renderRoom(rm, contentW))
+	}
+
+	// Wargame rooms — separate section
+	hasWargame := false
+	for _, rm := range r.Rooms {
+		if r.RoomTypes != nil && r.RoomTypes[rm.Name] == "wargame" {
+			hasWargame = true
+			break
+		}
+	}
+	if hasWargame {
+		b.WriteString("\n")
+		b.WriteString(sep)
+		b.WriteString("\n")
+		b.WriteString(green.Render("WARGAMES"))
+		b.WriteString("\n")
+
+		for _, rm := range r.Rooms {
+			if r.RoomTypes == nil || r.RoomTypes[rm.Name] != "wargame" {
+				continue
+			}
+			b.WriteString(r.renderRoom(rm, contentW))
+		}
+	}
+
+	// Other SSH section
 	if len(r.SSHLinks) > 0 {
-		dimmer := lipgloss.NewStyle().Foreground(ColorDimmer)
 		addrStyle := lipgloss.NewStyle().Foreground(ColorAccent)
 
 		b.WriteString("\n")
-		b.WriteString(dimmer.Render(strings.Repeat("─", r.Width-4)))
+		b.WriteString(sep)
 		b.WriteString("\n")
 		b.WriteString(header.Render("OTHER SSH"))
 		b.WriteString("\n")
