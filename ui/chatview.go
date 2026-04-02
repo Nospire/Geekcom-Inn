@@ -175,6 +175,16 @@ func (c ChatView) HasActiveLogs() bool {
 	return len(c.sysLogs) > 0
 }
 
+func (c ChatView) HasAnimatingGifs() bool {
+	count := 0
+	for i := len(c.messages) - 1; i >= 0 && count < maxAnimatingGifs; i-- {
+		if c.messages[i].IsGif && len(c.messages[i].GifFrames) > 1 {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *ChatView) renderMessages() {
 	var lines []string
 	now := time.Now()
