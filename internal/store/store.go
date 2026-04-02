@@ -42,6 +42,11 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// DB returns the underlying database connection for use by other packages.
+func (s *Store) DB() *sql.DB {
+	return s.db
+}
+
 func (s *Store) migrate() error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS users (

@@ -26,6 +26,7 @@ import (
 	"tavrn.sh/internal/session"
 	"tavrn.sh/internal/store"
 	"tavrn.sh/internal/sudoku"
+	"tavrn.sh/internal/wargame"
 	"tavrn.sh/internal/webstream"
 )
 
@@ -90,6 +91,20 @@ func main() {
 		case "--clear-banner":
 			runClearBanner()
 			return
+		case "--set-flag":
+			if len(os.Args) < 5 {
+				fmt.Println("Usage: tavrn --set-flag <wargame> <level> <flag>")
+				os.Exit(1)
+			}
+			runSetFlag(os.Args[2], os.Args[3], os.Args[4])
+			return
+		case "--list-flags":
+			if len(os.Args) < 3 {
+				fmt.Println("Usage: tavrn --list-flags <wargame>")
+				os.Exit(1)
+			}
+			runListFlags(os.Args[2])
+			return
 		case "--update":
 			if err := runUpdate(); err != nil {
 				log.Fatalf("update: %v", err)
@@ -107,6 +122,8 @@ func main() {
 			fmt.Println("  tavrn --ban \"nickname\"           Ban a user by nickname (live, kicks them)")
 			fmt.Println("  tavrn --unban \"nickname\"         Unban a user by nickname")
 			fmt.Println("  tavrn --ban-list                 Show all active bans")
+			fmt.Println("  tavrn --set-flag wg level flag   Set a wargame flag (hashed)")
+			fmt.Println("  tavrn --list-flags wargame       List levels with flags")
 			fmt.Println("  tavrn --update                   Pull main, rebuild, restart service")
 			fmt.Println("  tavrn --web-audio                Start with web audio streaming on :8090")
 			return
@@ -279,6 +296,42 @@ func runBanList() {
 		fmt.Printf("%-20s %-20s %s\n", b.Nickname, b.BannedAt, fp)
 	}
 	fmt.Printf("\n%d ban(s) total.\n", len(bans))
+}
+
+func runSetFlag(wargameName, levelStr, flag string) {
+	level, err := strconv.Atoi(levelStr)
+	if err != nil || level < 1 {
+		fmt.Println("Level must be a positive number.")
+		os.Exit(1)
+	}
+	st, err := store.New(resolvedDBPath())
+	if err != nil {
+		log.Fatalf("store: %v", err)
+	}
+	defer st.Close()
+	ws := wargame.New(st.DB())
+	if err := ws.SetFlag(wargameName, level, flag); err != nil {
+		log.Fatalf("set flag: %v", err)
+	}
+	fmt.Printf("Flag set: %s level %d\n", wargameName, level)
+}
+
+func runListFlags(wargameName string) {
+	st, err := store.New(resolvedDBPath())
+	if err != nil {
+		log.Fatalf("store: %v", err)
+	}
+	defer st.Close()
+	ws := wargame.New(st.DB())
+	levels := ws.ListFlags(wargameName)
+	if len(levels) == 0 {
+		fmt.Printf("No flags set for %s\n", wargameName)
+		return
+	}
+	fmt.Printf("%s flags (%d levels):\n", wargameName, len(levels))
+	for _, l := range levels {
+		fmt.Printf("  level %d  ✓\n", l)
+	}
 }
 
 func runPurge() {
