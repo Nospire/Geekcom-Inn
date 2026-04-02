@@ -1291,10 +1291,7 @@ func (a App) View() tea.View {
 
 	v := tea.NewView(base)
 	v.AltScreen = true
-	// Only capture mouse in gallery (for drag). Other rooms allow text selection.
-	if a.roomTypes[a.session.Room] == "gallery" {
-		v.MouseMode = tea.MouseModeCellMotion
-	}
+	v.MouseMode = tea.MouseModeCellMotion
 	v.WindowTitle = a.tavernDomain
 	return v
 }
