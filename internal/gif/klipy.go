@@ -67,13 +67,13 @@ func (c *KlipyClient) Search(query string) ([]KlipyResult, error) {
 				Slug  string `json:"slug"`
 				Title string `json:"title"`
 				File  struct {
-					Sm struct {
+					Xs struct {
 						Gif struct {
 							URL    string `json:"url"`
 							Width  int    `json:"width"`
 							Height int    `json:"height"`
 						} `json:"gif"`
-					} `json:"sm"`
+					} `json:"xs"`
 				} `json:"file"`
 			} `json:"data"`
 		} `json:"data"`
@@ -85,15 +85,15 @@ func (c *KlipyClient) Search(query string) ([]KlipyResult, error) {
 
 	var results []KlipyResult
 	for _, item := range raw.Data.Data {
-		if item.File.Sm.Gif.URL == "" {
+		if item.File.Xs.Gif.URL == "" {
 			continue
 		}
 		results = append(results, KlipyResult{
 			Slug:   item.Slug,
 			Title:  item.Title,
-			URL:    item.File.Sm.Gif.URL,
-			Width:  item.File.Sm.Gif.Width,
-			Height: item.File.Sm.Gif.Height,
+			URL:    item.File.Xs.Gif.URL,
+			Width:  item.File.Xs.Gif.Width,
+			Height: item.File.Xs.Gif.Height,
 		})
 	}
 

@@ -715,7 +715,9 @@ func (a App) handleInput() (tea.Model, tea.Cmd) {
 
 	parsed := chat.ParseInput(cleaned)
 	if parsed.IsCommand {
-		a.handleCommand(parsed)
+		if cmd := a.handleCommand(parsed); cmd != nil {
+			return a, cmd
+		}
 	} else {
 		if a.session.ChatLimiter.Allow() {
 			a.onSend(session.Msg{
@@ -735,7 +737,7 @@ func (a App) handleInput() (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) handleCommand(parsed chat.ParseResult) {
+func (a *App) handleCommand(parsed chat.ParseResult) tea.Cmd {
 	switch parsed.Command {
 	case "poll":
 		a.modal = ModalPoll
@@ -744,7 +746,7 @@ func (a *App) handleCommand(parsed chat.ParseResult) {
 		polls := a.pollStore.RoomPolls(a.session.Room)
 		if len(polls) == 0 {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "No polls in this room."))
-			return
+			return nil
 		}
 		a.modal = ModalPollVote
 		a.pollVoteOverlay = NewPollVoteOverlay(polls, a.session.Fingerprint)
@@ -752,7 +754,7 @@ func (a *App) handleCommand(parsed chat.ParseResult) {
 		p := a.pollStore.LatestByCreator(a.session.Room, a.session.Fingerprint)
 		if p == nil {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "You have no active polls here."))
-			return
+			return nil
 		}
 		a.pollStore.Close(p.ID, a.session.Fingerprint)
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
@@ -766,50 +768,52 @@ func (a *App) handleCommand(parsed chat.ParseResult) {
 	case "gif":
 		if a.gifClient == nil {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "GIF search is not enabled."))
-			return
+			return nil
 		}
 		query := strings.TrimSpace(parsed.Args)
 		if query == "" {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Usage: /gif <search>"))
-			return
+			return nil
 		}
 		a.modal = ModalGif
 		a.gifModal = NewGifModal(query, a.gifClient)
+		return a.gifModal.Init()
 	case "addssh":
 		if !identity.IsOwnerFingerprint(a.session.Fingerprint, a.ownerFingerprint) {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Only the tavern owner can do that."))
-			return
+			return nil
 		}
 		addr := strings.TrimSpace(parsed.Args)
 		if addr == "" {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Usage: /addssh <address>"))
-			return
+			return nil
 		}
 		if err := a.store.AddSSHLink(addr); err != nil {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Failed to add SSH link."))
-			return
+			return nil
 		}
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
 			fmt.Sprintf("Added: %s", addr)))
 	case "rmssh":
 		if !identity.IsOwnerFingerprint(a.session.Fingerprint, a.ownerFingerprint) {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Only the tavern owner can do that."))
-			return
+			return nil
 		}
 		addr := strings.TrimSpace(parsed.Args)
 		if addr == "" {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Usage: /rmssh <address>"))
-			return
+			return nil
 		}
 		if err := a.store.RemoveSSHLink(addr); err != nil {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Failed to remove SSH link."))
-			return
+			return nil
 		}
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
 			fmt.Sprintf("Removed: %s", addr)))
 	default:
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Use F1 for help with keybinds."))
 	}
+	return nil
 }
 
 func (a *App) handleHubMsg(msg session.Msg) {
