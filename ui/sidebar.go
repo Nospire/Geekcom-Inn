@@ -226,25 +226,34 @@ func (o OnlinePanel) View() string {
 		b.WriteString(accent.Render("HACKERS"))
 		b.WriteString("\n")
 
-		maxNameW := o.Width - 14
-		if maxNameW < 4 {
-			maxNameW = 4
+		medals := []string{"*", ".", "."}
+		maxNameW := o.Width - 10
+		if maxNameW < 6 {
+			maxNameW = 6
 		}
 		for i, e := range o.Leaderboard {
 			if i >= 3 {
 				break
 			}
-			rank := fmt.Sprintf("#%d", i+1)
+			medal := " "
+			if i < len(medals) {
+				medal = medals[i]
+			}
 			name := e.Name
 			if len(name) > maxNameW {
 				name = name[:maxNameW-1] + "."
 			}
 			pts := fmt.Sprintf("%d", e.Points)
 
+			// name left, points right
+			gap := o.Width - 6 - len(name) - len(pts) - 2
+			if gap < 1 {
+				gap = 1
+			}
 			if i == 0 {
-				b.WriteString(amber.Render(rank+" "+name) + dim.Render(" "+pts))
+				b.WriteString(amber.Render(medal+" "+name) + strings.Repeat(" ", gap) + dim.Render(pts))
 			} else {
-				b.WriteString(dim.Render(rank+" "+name) + dimmer.Render(" "+pts))
+				b.WriteString(dim.Render(medal+" "+name) + strings.Repeat(" ", gap) + dimmer.Render(pts))
 			}
 			b.WriteString("\n")
 		}
