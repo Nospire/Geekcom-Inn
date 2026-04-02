@@ -1349,12 +1349,28 @@ func (a App) View() tea.View {
 	topBar := a.topBar.View()
 	bottomBar := a.bottomBar.View()
 
-	// Main content: gallery, sudoku, or chat depending on room
+	// Main content: gallery, sudoku, wargame, or chat depending on room
 	var centerView string
 	if a.roomTypes[a.session.Room] == "gallery" {
 		centerView = a.gallery.View()
 	} else if a.roomTypes[a.session.Room] == "games" && a.sudokuView != nil {
 		centerView = a.sudokuView.View()
+	} else if a.roomTypes[a.session.Room] == "wargame" && a.wargameStore != nil {
+		// Wargame room: progress header + chat
+		level := 0
+		pts := 0
+		progress := a.wargameStore.UserProgress(a.session.Fingerprint)
+		for _, p := range progress {
+			if p.Wargame == a.session.Room {
+				level = p.Level
+				pts = p.Points
+				break
+			}
+		}
+		maxLevel := a.wargameStore.MaxLevel(a.session.Room)
+		chatW := a.chat.viewport.Width()
+		header := WargameHeader(a.session.Room, level, maxLevel, pts, chatW)
+		centerView = header + a.chat.View()
 	} else {
 		centerView = a.chat.View()
 	}
