@@ -161,9 +161,23 @@ func (s *Store) SubmitFlag(fingerprint, wargame, flag string) (bool, int, error)
 }
 
 // UserProgress returns progress across all wargames for a user.
-func (s *Store) UserProgress(fingerprint string) []Progress {
-	// Get all wargames that have flags
-	wargames := s.allWargames()
+// If wargameRooms is provided, includes those rooms even without flags set.
+func (s *Store) UserProgress(fingerprint string, wargameRooms ...string) []Progress {
+	// Merge wargames from DB flags + configured rooms
+	seen := make(map[string]bool)
+	var wargames []string
+	for _, wg := range s.allWargames() {
+		if !seen[wg] {
+			wargames = append(wargames, wg)
+			seen[wg] = true
+		}
+	}
+	for _, wg := range wargameRooms {
+		if !seen[wg] {
+			wargames = append(wargames, wg)
+			seen[wg] = true
+		}
+	}
 
 	var progress []Progress
 	for _, wg := range wargames {

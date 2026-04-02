@@ -124,6 +124,17 @@ func (a App) roomByType(roomType string) string {
 	return ""
 }
 
+// wargameRoomNames returns all room names with type "wargame".
+func (a App) wargameRoomNames() []string {
+	var names []string
+	for name, rt := range a.roomTypes {
+		if rt == "wargame" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
 func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(session.Msg),
 	game *sudoku.Game, ps *poll.Store,
 	tavernName, tavernDomain, tagline, ownerName, ownerFingerprint, firstRoom string,
@@ -495,7 +506,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "f7":
 			if a.wargameStore != nil {
 				entries := a.wargameStore.Leaderboard(10)
-				progress := a.wargameStore.UserProgress(a.session.Fingerprint)
+				progress := a.wargameStore.UserProgress(a.session.Fingerprint, a.wargameRoomNames()...)
 				a.modal = ModalLeaderboard
 				a.leaderboardModal = NewLeaderboardModal(entries, progress, a.session.Fingerprint)
 				return a, nil
@@ -882,7 +893,7 @@ func (a *App) handleCommand(parsed chat.ParseResult) tea.Cmd {
 			return nil
 		}
 		currentLevel := 0
-		progress := a.wargameStore.UserProgress(a.session.Fingerprint)
+		progress := a.wargameStore.UserProgress(a.session.Fingerprint, a.wargameRoomNames()...)
 		for _, p := range progress {
 			if p.Wargame == a.session.Room {
 				currentLevel = p.Level
@@ -902,7 +913,7 @@ func (a *App) handleCommand(parsed chat.ParseResult) tea.Cmd {
 			return nil
 		}
 		entries := a.wargameStore.Leaderboard(10)
-		progress := a.wargameStore.UserProgress(a.session.Fingerprint)
+		progress := a.wargameStore.UserProgress(a.session.Fingerprint, a.wargameRoomNames()...)
 		a.modal = ModalLeaderboard
 		a.leaderboardModal = NewLeaderboardModal(entries, progress, a.session.Fingerprint)
 	default:
@@ -1418,7 +1429,7 @@ func (a App) View() tea.View {
 		// Wargame room: progress header + chat
 		level := 0
 		pts := 0
-		progress := a.wargameStore.UserProgress(a.session.Fingerprint)
+		progress := a.wargameStore.UserProgress(a.session.Fingerprint, a.wargameRoomNames()...)
 		for _, p := range progress {
 			if p.Wargame == a.session.Room {
 				level = p.Level
