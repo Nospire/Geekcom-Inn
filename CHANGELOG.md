@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4
+
+- /gif search — animated GIFs in chat via Klipy API
+- half-block rendering with Floyd-Steinberg dithering
+- GIF animation in chat (3 active, oldest freeze)
+- GIF history persists across reconnects
+- wargame CTF rooms — OverTheWire flag submission
+- leaderboard with signup, levels, triangular points (F7)
+- wargame mission briefing header per room
+- rules modal on first wargame visit, Y to sign up
+- sidebar reorganized: ROOMS and WARGAMES sections
+- join room modal separates rooms and wargames
+- world clock in online panel (NYC, CHI, LDN, BER, TYO)
+- hacker leaderboard mini-view in sidebar
+- fork-friendly — tavern.yaml config, Docker support
+- MIT license + trademark protection
+
 ## v0.3
 
 - The Shadow — AI bartender in the lounge, @bartender to talk
@@ -12,10 +29,6 @@
 - help modal updated with all keybinds and commands
 - URLs render as styled boxes in chat
 - text selection works outside gallery
-- /gif search — animated GIFs in chat via Klipy API
-- wargame CTF rooms — OverTheWire flag submission, leaderboard (F7), level badges
-- fork-friendly — tavern.yaml config, Docker support, MIT license
-- world clock in online panel
 
 ## v0.2
 
