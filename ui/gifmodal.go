@@ -10,7 +10,7 @@ import (
 	"tavrn.sh/internal/gif"
 )
 
-const gifModalRenderWidth = 30
+const gifModalRenderWidth = 50
 
 // GifSendMsg carries the selected GIF data back to the app.
 type GifSendMsg struct {
