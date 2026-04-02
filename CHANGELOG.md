@@ -14,8 +14,6 @@
 - join room modal separates rooms and wargames
 - world clock in online panel (NYC, CHI, LDN, BER, TYO)
 - hacker leaderboard mini-view in sidebar
-- fork-friendly — tavern.yaml config, Docker support
-- MIT license + trademark protection
 
 ## v0.3
 
