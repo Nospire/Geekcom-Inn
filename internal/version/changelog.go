@@ -22,7 +22,9 @@ var Changelog = []Entry{
 			"URLs render as styled boxes in chat",
 			"text selection works outside gallery",
 			"/gif search — animated GIFs in chat via Klipy API",
+			"wargame CTF rooms — flag submission, leaderboard (F7), level badges",
 			"fork-friendly — tavern.yaml config, Docker support, MIT license",
+			"world clock in online panel",
 		},
 	},
 	{
