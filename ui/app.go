@@ -332,26 +332,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case GifSendMsg:
 		a.modal = ModalNone
-		// Re-render frames at chat box size (40 chars wide)
-		chatFrames := make([]string, len(msg.Frames))
-		for i, f := range msg.Frames {
-			// Modal frames are already rendered — for chat we use them as-is
-			// In production, you'd re-render at smaller width, but the modal
-			// renders at 60 and chat at 40. For now, use modal frames.
-			chatFrames[i] = f
-		}
-		a.chat.AddMessage(chat.Message{
-			Room:       a.session.Room,
-			Nickname:   a.session.Nickname,
-			ColorIndex: a.session.ColorIndex,
-			Text:       msg.Title,
-			IsGif:      true,
-			GifFrames:  chatFrames,
-			GifDelays:  msg.Delays,
-			GifTitle:   msg.Title,
-			GifURL:     msg.URL,
-			Timestamp:  time.Now(),
-		})
+		// Don't add locally — the broadcast will deliver it to everyone including us
 		a.onSend(session.Msg{
 			Type:        session.MsgGif,
 			Room:        a.session.Room,
@@ -359,7 +340,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Fingerprint: a.session.Fingerprint,
 			ColorIndex:  a.session.ColorIndex,
 			Text:        msg.Title,
-			GifFrames:   chatFrames,
+			GifFrames:   msg.Frames,
 			GifDelays:   msg.Delays,
 			GifTitle:    msg.Title,
 			GifURL:      msg.URL,
@@ -929,10 +910,6 @@ func (a *App) handleHubMsg(msg session.Msg) {
 			a.pollVoteOverlay.SetPolls(polls)
 		}
 	case session.MsgGif:
-		// Skip if we just sent this ourselves (live send already added it)
-		if msg.Fingerprint == a.session.Fingerprint && msg.Timestamp.IsZero() {
-			break
-		}
 		a.chat.AddMessage(chat.Message{
 			Room:       msg.Room,
 			Nickname:   msg.Nickname,

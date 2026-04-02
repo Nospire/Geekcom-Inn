@@ -153,14 +153,17 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		frames []string
 		delays []int
 	})
-	if s.cfg.GifClient != nil {
+	if s.cfg.GifClient != nil && len(gifItems) > 0 {
+		log.Printf("gif history: re-rendering %d GIFs for joining user", len(gifItems))
 		for _, gi := range gifItems {
 			data, err := s.cfg.GifClient.FetchGIF(gi.url)
 			if err != nil {
+				log.Printf("gif history: fetch failed: %v", err)
 				continue
 			}
 			decoded, err := gif.Decode(data)
 			if err != nil {
+				log.Printf("gif history: decode failed: %v", err)
 				continue
 			}
 			frames := gif.RenderFrames(decoded.Frames, 60)
@@ -168,6 +171,7 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 				frames []string
 				delays []int
 			}{frames: frames, delays: decoded.Delays}
+			log.Printf("gif history: rendered %d frames for %s", len(frames), gi.url)
 		}
 	}
 
