@@ -24,10 +24,10 @@ type LeaderboardEntry struct {
 
 // Progress represents a user's progress in a single wargame.
 type Progress struct {
-	Wargame    string
-	Level      int
-	MaxLevel   int
-	Points     int
+	Wargame  string
+	Level    int
+	MaxLevel int
+	Points   int
 }
 
 // New creates a wargame store using the given DB connection.
