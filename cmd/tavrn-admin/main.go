@@ -495,6 +495,7 @@ func runServer() {
 		FirstRoom:        cfg.FirstRoom(),
 		RoomTypes:        cfg.RoomTypeMap(),
 		GifClient:        gifClient,
+		WargameStore:     wargame.New(st.DB()),
 	})
 	if err != nil {
 		log.Fatalf("server: %v", err)

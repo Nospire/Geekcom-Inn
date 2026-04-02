@@ -21,6 +21,7 @@ import (
 	"tavrn.sh/internal/session"
 	"tavrn.sh/internal/store"
 	"tavrn.sh/internal/sudoku"
+	"tavrn.sh/internal/wargame"
 )
 
 type HubMsg session.Msg
@@ -79,6 +80,11 @@ type App struct {
 	// GIF search
 	gifClient *gif.KlipyClient
 
+	// Wargame CTF
+	wargameStore     *wargame.Store
+	submitModal      SubmitModal
+	leaderboardModal LeaderboardModal
+
 	// Mentions
 	mentions []mention.Mention
 
@@ -118,7 +124,7 @@ func (a App) roomByType(roomType string) string {
 func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(session.Msg),
 	game *sudoku.Game, ps *poll.Store,
 	tavernName, tavernDomain, tagline, ownerName, ownerFingerprint, firstRoom string,
-	roomTypes map[string]string, gifClient *gif.KlipyClient) App {
+	roomTypes map[string]string, gifClient *gif.KlipyClient, ws *wargame.Store) App {
 	app := App{
 		state:            stateSplash,
 		splash:           NewSplash(sess.Nickname, sess.Fingerprint, sess.Flair, tavernDomain, tagline),
@@ -143,6 +149,7 @@ func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(sess
 		firstRoom:        firstRoom,
 		roomTypes:        roomTypes,
 		gifClient:        gifClient,
+		wargameStore:     ws,
 	}
 	app.chat.SetOwnNickname(sess.Nickname)
 	app.chat.OwnerName = ownerName
@@ -348,6 +355,33 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			GifURL:      msg.URL,
 		})
 		return a, nil
+
+	case SubmitFlagMsg:
+		a.modal = ModalNone
+		if a.wargameStore == nil {
+			return a, nil
+		}
+		ok, newLevel, err := a.wargameStore.SubmitFlag(a.session.Fingerprint, a.session.Room, msg.Flag)
+		if err != nil {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, err.Error()))
+			return a, nil
+		}
+		if !ok {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Wrong flag. Try again."))
+			return a, nil
+		}
+		// Success — broadcast to room
+		totalLevel := a.wargameStore.UserTotalLevel(a.session.Fingerprint)
+		totalPts := a.wargameStore.UserTotalPoints(a.session.Fingerprint)
+		announcement := fmt.Sprintf("%s cleared %s level %d  [Lv.%d | %d pts]",
+			a.session.Nickname, strings.ToUpper(a.session.Room), newLevel, totalLevel, totalPts)
+		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, announcement))
+		a.onSend(session.Msg{
+			Type: session.MsgSystem,
+			Room: a.session.Room,
+			Text: announcement,
+		})
+		return a, nil
 	}
 
 	// Splash state — handle keys directly (tick/resize handled above)
@@ -440,6 +474,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.tankardFocused = !a.tankardFocused
 			a.tankard.focused = a.tankardFocused
 			return a, nil
+		case "f7":
+			if a.wargameStore != nil {
+				entries := a.wargameStore.Leaderboard(10)
+				progress := a.wargameStore.UserProgress(a.session.Fingerprint)
+				a.modal = ModalLeaderboard
+				a.leaderboardModal = NewLeaderboardModal(entries, progress, a.session.Fingerprint)
+				return a, nil
+			}
 		}
 	}
 
@@ -659,6 +701,14 @@ func (a App) updateModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.gifModal, cmd = a.gifModal.Update(msg)
 		return a, cmd
+	case ModalSubmitFlag:
+		var cmd tea.Cmd
+		a.submitModal, cmd = a.submitModal.Update(msg)
+		return a, cmd
+	case ModalLeaderboard:
+		var cmd tea.Cmd
+		a.leaderboardModal, cmd = a.leaderboardModal.Update(msg)
+		return a, cmd
 	}
 	return a, nil
 }
@@ -796,6 +846,39 @@ func (a *App) handleCommand(parsed chat.ParseResult) tea.Cmd {
 		}
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
 			fmt.Sprintf("Removed: %s", addr)))
+	case "submit":
+		if a.wargameStore == nil {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Wargame system not available."))
+			return nil
+		}
+		if a.roomTypes[a.session.Room] != "wargame" {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Use /submit in a wargame room."))
+			return nil
+		}
+		currentLevel := 0
+		progress := a.wargameStore.UserProgress(a.session.Fingerprint)
+		for _, p := range progress {
+			if p.Wargame == a.session.Room {
+				currentLevel = p.Level
+				break
+			}
+		}
+		maxLevel := a.wargameStore.MaxLevel(a.session.Room)
+		if currentLevel >= maxLevel && maxLevel > 0 {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "You've cleared all available levels."))
+			return nil
+		}
+		a.modal = ModalSubmitFlag
+		a.submitModal = NewSubmitModal(a.session.Room, currentLevel, maxLevel)
+	case "leaderboard", "lb":
+		if a.wargameStore == nil {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Wargame system not available."))
+			return nil
+		}
+		entries := a.wargameStore.Leaderboard(10)
+		progress := a.wargameStore.UserProgress(a.session.Fingerprint)
+		a.modal = ModalLeaderboard
+		a.leaderboardModal = NewLeaderboardModal(entries, progress, a.session.Fingerprint)
 	default:
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Use F1 for help with keybinds."))
 	}
@@ -1306,6 +1389,10 @@ func (a App) View() tea.View {
 			modalBox = a.pollVoteOverlay.View(a.width, a.height)
 		case ModalGif:
 			modalBox = a.gifModal.View(a.width, a.height)
+		case ModalSubmitFlag:
+			modalBox = a.submitModal.View(a.width, a.height)
+		case ModalLeaderboard:
+			modalBox = a.leaderboardModal.View(a.width, a.height)
 		}
 		base = Overlay(base, modalBox, a.width, a.height)
 	}

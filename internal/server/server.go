@@ -22,6 +22,7 @@ import (
 	"tavrn.sh/internal/session"
 	"tavrn.sh/internal/store"
 	"tavrn.sh/internal/sudoku"
+	"tavrn.sh/internal/wargame"
 	"tavrn.sh/ui"
 )
 
@@ -43,6 +44,7 @@ type Config struct {
 	FirstRoom        string
 	RoomTypes        map[string]string
 	GifClient        *gif.KlipyClient
+	WargameStore     *wargame.Store
 }
 
 type Server struct {
@@ -335,7 +337,7 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 	model := ui.NewApp(sess, s.cfg.Store, s.cfg.Hub, onSend, s.cfg.SudokuGame, s.cfg.PollStore,
 		s.cfg.TavernName, s.cfg.TavernDomain, s.cfg.Tagline,
 		s.cfg.OwnerName, s.cfg.OwnerFingerprint, s.cfg.FirstRoom,
-		s.cfg.RoomTypes, s.cfg.GifClient)
+		s.cfg.RoomTypes, s.cfg.GifClient, s.cfg.WargameStore)
 	return model, nil
 }
 
