@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/harmonica"
 	"tavrn.sh/internal/chat"
+	"tavrn.sh/internal/gif"
 	"tavrn.sh/internal/hub"
 	"tavrn.sh/internal/identity"
 	"tavrn.sh/internal/mention"
@@ -70,9 +71,13 @@ type App struct {
 	pollModal       PollModal
 	pollVoteOverlay PollVoteOverlay
 	changelogModal  ChangelogModal
+	gifModal        GifModal
 
 	// Polls
 	pollStore *poll.Store
+
+	// GIF search
+	gifClient *gif.KlipyClient
 
 	// Mentions
 	mentions []mention.Mention
@@ -113,7 +118,7 @@ func (a App) roomByType(roomType string) string {
 func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(session.Msg),
 	game *sudoku.Game, ps *poll.Store,
 	tavernName, tavernDomain, tagline, ownerName, ownerFingerprint, firstRoom string,
-	roomTypes map[string]string) App {
+	roomTypes map[string]string, gifClient *gif.KlipyClient) App {
 	app := App{
 		state:            stateSplash,
 		splash:           NewSplash(sess.Nickname, sess.Fingerprint, sess.Flair, tavernDomain, tagline),
@@ -137,6 +142,7 @@ func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(sess
 		ownerFingerprint: ownerFingerprint,
 		firstRoom:        firstRoom,
 		roomTypes:        roomTypes,
+		gifClient:        gifClient,
 	}
 	app.chat.SetOwnNickname(sess.Nickname)
 	app.chat.OwnerName = ownerName
@@ -189,6 +195,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if a.state == stateTavern {
 			a.chat.Tick()
+			TickGifAnimations(a.chat.messages)
 			a.pruneExpiredMentions()
 			if a.sudokuView != nil {
 				a.sudokuView.Tick()
@@ -320,6 +327,39 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Room:        a.session.Room,
 			Fingerprint: a.session.Fingerprint,
 			PollID:      msg.PollID,
+		})
+		return a, nil
+
+	case GifSendMsg:
+		a.modal = ModalNone
+		// Re-render frames at chat box size (40 chars wide)
+		chatFrames := make([]string, len(msg.Frames))
+		for i, f := range msg.Frames {
+			// Modal frames are already rendered — for chat we use them as-is
+			// In production, you'd re-render at smaller width, but the modal
+			// renders at 60 and chat at 40. For now, use modal frames.
+			chatFrames[i] = f
+		}
+		a.chat.AddMessage(chat.Message{
+			Room:       a.session.Room,
+			Nickname:   a.session.Nickname,
+			ColorIndex: a.session.ColorIndex,
+			Text:       fmt.Sprintf("/gif %s", msg.Title),
+			IsGif:      true,
+			GifFrames:  chatFrames,
+			GifDelays:  msg.Delays,
+			GifTitle:   msg.Title,
+			Timestamp:  time.Now(),
+		})
+		a.onSend(session.Msg{
+			Type:        session.MsgGif,
+			Room:        a.session.Room,
+			Nickname:    a.session.Nickname,
+			Fingerprint: a.session.Fingerprint,
+			ColorIndex:  a.session.ColorIndex,
+			GifFrames:   chatFrames,
+			GifDelays:   msg.Delays,
+			GifTitle:    msg.Title,
 		})
 		return a, nil
 	}
@@ -629,6 +669,10 @@ func (a App) updateModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.pollVoteOverlay, cmd = a.pollVoteOverlay.Update(msg)
 		return a, cmd
+	case ModalGif:
+		var cmd tea.Cmd
+		a.gifModal, cmd = a.gifModal.Update(msg)
+		return a, cmd
 	}
 	return a, nil
 }
@@ -719,6 +763,18 @@ func (a *App) handleCommand(parsed chat.ParseResult) {
 			Fingerprint: a.session.Fingerprint,
 			PollID:      p.ID,
 		})
+	case "gif":
+		if a.gifClient == nil {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "GIF search is not enabled."))
+			return
+		}
+		query := strings.TrimSpace(parsed.Args)
+		if query == "" {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Usage: /gif <search>"))
+			return
+		}
+		a.modal = ModalGif
+		a.gifModal = NewGifModal(query, a.gifClient)
 	case "addssh":
 		if !identity.IsOwnerFingerprint(a.session.Fingerprint, a.ownerFingerprint) {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Only the tavern owner can do that."))
@@ -864,6 +920,20 @@ func (a *App) handleHubMsg(msg session.Msg) {
 		if a.modal == ModalPollVote {
 			polls := a.pollStore.RoomPolls(a.session.Room)
 			a.pollVoteOverlay.SetPolls(polls)
+		}
+	case session.MsgGif:
+		if msg.Fingerprint != a.session.Fingerprint {
+			a.chat.AddMessage(chat.Message{
+				Room:       msg.Room,
+				Nickname:   msg.Nickname,
+				ColorIndex: msg.ColorIndex,
+				Text:       fmt.Sprintf("/gif %s", msg.GifTitle),
+				IsGif:      true,
+				GifFrames:  msg.GifFrames,
+				GifDelays:  msg.GifDelays,
+				GifTitle:   msg.GifTitle,
+				Timestamp:  msg.Timestamp,
+			})
 		}
 	}
 }
@@ -1219,6 +1289,8 @@ func (a App) View() tea.View {
 			modalBox = a.pollModal.View(a.width, a.height)
 		case ModalPollVote:
 			modalBox = a.pollVoteOverlay.View(a.width, a.height)
+		case ModalGif:
+			modalBox = a.gifModal.View(a.width, a.height)
 		}
 		base = Overlay(base, modalBox, a.width, a.height)
 	}

@@ -207,6 +207,18 @@ func (c *ChatView) renderMessages() {
 			continue
 		}
 
+		if msg.IsGif {
+			// GIF box: animated half-block content in bordered box
+			lines = append(lines, "")
+			gifBox := RenderGifBox(&c.messages[i])
+			for _, gl := range strings.Split(gifBox, "\n") {
+				lines = append(lines, "  "+gl)
+			}
+			lines = append(lines, "")
+			prevNick = ""
+			continue
+		}
+
 		// Discord-style: group consecutive messages from same user
 		sameUser := msg.Nickname == prevNick
 		prevNick = msg.Nickname

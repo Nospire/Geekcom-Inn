@@ -32,6 +32,7 @@ const (
 	MsgPollCreate   // poll created
 	MsgPollVote     // vote cast on poll
 	MsgPollClose    // poll closed by creator
+	MsgGif          // animated GIF in chat
 )
 
 // NoteData carries sticky note info through the hub.
@@ -53,11 +54,14 @@ type Msg struct {
 	Room        string
 	Timestamp   time.Time
 	Note        *NoteData
-	SudokuRow   int    // row 0-8
-	SudokuCol   int    // col 0-8
-	SudokuValue int    // digit 1-9 (0 for clear)
-	SudokuBoard string // JSON-encoded board state for full sync
-	PollID      int    // poll ID for poll messages
+	SudokuRow   int      // row 0-8
+	SudokuCol   int      // col 0-8
+	SudokuValue int      // digit 1-9 (0 for clear)
+	SudokuBoard string   // JSON-encoded board state for full sync
+	PollID      int      // poll ID for poll messages
+	GifFrames   []string // pre-rendered half-block frames
+	GifDelays   []int    // frame delays in milliseconds
+	GifTitle    string   // GIF title for display
 }
 
 // Session represents a connected user.

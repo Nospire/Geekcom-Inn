@@ -28,6 +28,7 @@ const (
 	ModalPoll
 	ModalPollVote
 	ModalChangelog
+	ModalGif
 )
 
 // CloseModalMsg signals modal should close.

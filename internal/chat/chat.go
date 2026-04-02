@@ -16,6 +16,12 @@ type Message struct {
 	IsSystem    bool
 	IsBanner    bool
 	IsPoll      bool
+	IsGif       bool
+	GifFrames   []string // pre-rendered half-block frames
+	GifDelays   []int    // frame delays in milliseconds
+	GifTitle    string
+	GifFrame    int // current animation frame index
+	GifLastTick time.Time
 }
 
 // ParseResult holds the result of parsing user input.

@@ -17,6 +17,7 @@ import (
 
 	"tavrn.sh/internal/bartender"
 	"tavrn.sh/internal/config"
+	"tavrn.sh/internal/gif"
 	"tavrn.sh/internal/hub"
 	"tavrn.sh/internal/jukebox"
 	"tavrn.sh/internal/poll"
@@ -414,6 +415,15 @@ func runServer() {
 	}
 
 	port := getPort()
+	// GIF search — disabled if KLIPY_API_KEY is not set
+	var gifClient *gif.KlipyClient
+	if klipyKey := os.Getenv("KLIPY_API_KEY"); klipyKey != "" {
+		gifClient = gif.NewKlipyClient(klipyKey)
+		log.Println("gif search: enabled")
+	} else {
+		log.Println("gif search: disabled (no KLIPY_API_KEY)")
+	}
+
 	srv, err := server.New(server.Config{
 		Host:             "0.0.0.0",
 		Port:             port,
@@ -431,6 +441,7 @@ func runServer() {
 		OwnerFingerprint: cfg.Owner.Fingerprint,
 		FirstRoom:        cfg.FirstRoom(),
 		RoomTypes:        cfg.RoomTypeMap(),
+		GifClient:        gifClient,
 	})
 	if err != nil {
 		log.Fatalf("server: %v", err)

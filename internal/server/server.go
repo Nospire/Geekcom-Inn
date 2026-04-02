@@ -14,6 +14,7 @@ import (
 	lm "charm.land/wish/v2/elapsed"
 	"github.com/charmbracelet/ssh"
 	"tavrn.sh/internal/bartender"
+	"tavrn.sh/internal/gif"
 	"tavrn.sh/internal/hub"
 	"tavrn.sh/internal/identity"
 	"tavrn.sh/internal/jukebox"
@@ -41,6 +42,7 @@ type Config struct {
 	OwnerFingerprint string
 	FirstRoom        string
 	RoomTypes        map[string]string
+	GifClient        *gif.KlipyClient
 }
 
 type Server struct {
@@ -273,7 +275,7 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 	model := ui.NewApp(sess, s.cfg.Store, s.cfg.Hub, onSend, s.cfg.SudokuGame, s.cfg.PollStore,
 		s.cfg.TavernName, s.cfg.TavernDomain, s.cfg.Tagline,
 		s.cfg.OwnerName, s.cfg.OwnerFingerprint, s.cfg.FirstRoom,
-		s.cfg.RoomTypes)
+		s.cfg.RoomTypes, s.cfg.GifClient)
 	return model, nil
 }
 
