@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"fmt"
-	"strings"
 	"time"
 
 	"charm.land/lipgloss/v2"
@@ -12,7 +10,6 @@ import (
 const maxAnimatingGifs = 3
 
 // RenderGifBox renders a GIF message as a bordered box with the current frame.
-// The frame advances based on timing in TickGifAnimations.
 func RenderGifBox(msg *chat.Message) string {
 	if len(msg.GifFrames) == 0 {
 		return ""
@@ -20,53 +17,21 @@ func RenderGifBox(msg *chat.Message) string {
 
 	frame := msg.GifFrames[msg.GifFrame%len(msg.GifFrames)]
 
-	border := lipgloss.NewStyle().Foreground(ColorBorder)
 	dim := lipgloss.NewStyle().Foreground(ColorDim)
 	accent := lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
 
-	// Find the widest line in the frame for border sizing
-	frameLines := strings.Split(frame, "\n")
-	maxWidth := 0
-	for _, line := range frameLines {
-		w := lipgloss.Width(line)
-		if w > maxWidth {
-			maxWidth = w
-		}
+	label := msg.GifTitle
+	if len(label) > 30 {
+		label = label[:27] + "..."
 	}
+	header := accent.Render("GIF") + " " + dim.Render(label)
+	content := header + "\n\n" + frame + "\n"
 
-	var b strings.Builder
-
-	// Top border
-	title := " GIF "
-	headerFill := maxWidth - lipgloss.Width(title) + 2
-	if headerFill < 0 {
-		headerFill = 0
-	}
-	b.WriteString(border.Render("╭─") + accent.Render(title) + border.Render(strings.Repeat("─", headerFill)+"╮"))
-	b.WriteString("\n")
-
-	// Frame content
-	for _, line := range frameLines {
-		padding := maxWidth - lipgloss.Width(line)
-		if padding < 0 {
-			padding = 0
-		}
-		b.WriteString(border.Render("│ ") + line + strings.Repeat(" ", padding) + border.Render(" │"))
-		b.WriteString("\n")
-	}
-
-	// Bottom border with title
-	label := fmt.Sprintf(" %s ", msg.GifTitle)
-	if len(label) > maxWidth {
-		label = label[:maxWidth]
-	}
-	footerFill := maxWidth - lipgloss.Width(label) + 2
-	if footerFill < 0 {
-		footerFill = 0
-	}
-	b.WriteString(border.Render("╰"+strings.Repeat("─", footerFill)) + dim.Render(label) + border.Render("╯"))
-
-	return b.String()
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorBorder).
+		Padding(0, 1).
+		Render(content)
 }
 
 // TickGifAnimations advances frames for the most recent N animated GIFs.
