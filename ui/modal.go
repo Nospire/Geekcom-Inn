@@ -85,6 +85,7 @@ func (h HelpModal) View(width, height int) string {
 		{"F4", "view mentions"},
 		{"F5", "post note"},
 		{"F6", "tankard clicker"},
+		{"F7", "leaderboard"},
 		{"ESC", "close modal / unfocus"},
 		{"SHIFT+arrows", "scroll chat"},
 	}
@@ -100,6 +101,8 @@ func (h HelpModal) View(width, height int) string {
 		{"/vote", "vote on active polls"},
 		{"/endpoll", "close your poll"},
 		{"/gif <search>", "search and send animated GIFs"},
+		{"/submit", "submit a wargame flag"},
+		{"/leaderboard", "view hacker rankings"},
 	}
 	for _, c := range cmds {
 		fmt.Fprintf(&b, "  %s  %s\n", cmd.Width(18).Render(c.k), desc.Render(c.d))
