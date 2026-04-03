@@ -391,6 +391,31 @@ func (s *Store) RecentMessages(room string, limit int) ([]ChatRow, error) {
 	return msgs, nil
 }
 
+// TrimMessages keeps only the latest N messages per room, deleting older ones.
+// GIF messages beyond the newest keepGifs are cleared of their gif_url.
+func (s *Store) TrimMessages(room string, maxMessages, keepGifs int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Delete messages beyond the limit
+	s.db.Exec(`
+		DELETE FROM chat_messages WHERE room = ? AND id NOT IN (
+			SELECT id FROM chat_messages WHERE room = ?
+			ORDER BY created_at DESC LIMIT ?
+		)
+	`, room, room, maxMessages)
+
+	// Clear gif_url on older GIF messages, keeping only the newest keepGifs
+	s.db.Exec(`
+		UPDATE chat_messages SET gif_url = ''
+		WHERE room = ? AND gif_url != '' AND id NOT IN (
+			SELECT id FROM chat_messages
+			WHERE room = ? AND gif_url != ''
+			ORDER BY created_at DESC LIMIT ?
+		)
+	`, room, room, keepGifs)
+}
+
 // RecentActivityCounts returns the number of non-system messages per room
 // within the last N minutes.
 func (s *Store) RecentActivityCounts(minutes int) map[string]int {

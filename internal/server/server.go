@@ -276,6 +276,8 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		case session.MsgSystem, session.MsgUserJoined, session.MsgUserLeft:
 			s.cfg.Store.SaveMessage(msg.Room, "", "", 0, msg.Text, true)
 		}
+		// Trim old messages and GIFs in background
+		go s.cfg.Store.TrimMessages(msg.Room, 100, 3)
 		s.cfg.Hub.Broadcast(msg.Room, msg)
 
 		if s.cfg.Bartender == nil || s.cfg.Bartender.IsDisabled() || msg.Type != session.MsgChat {

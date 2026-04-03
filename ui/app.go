@@ -106,6 +106,15 @@ type App struct {
 	dmPeerNick    string // current DM partner nickname
 	dmUnreadCache int
 
+	// Cached sidebar/topbar data (refreshed on tick, not every render)
+	cachedWeeklyCount    int
+	cachedAllTimeCount   int
+	cachedRoomInfos      []RoomInfo
+	cachedActivityCounts map[string]int
+	cachedSSHLinks       []string
+	cachedOnlineNames    []string
+	cachedLeaderboard    []LeaderboardMini
+
 	// Tankard collectible
 	tankard        TankardView
 	tankardFocused bool
@@ -228,11 +237,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.hub.OnlineCount() > 0 {
 			a.online.Frame++
 		}
-		// Refresh DM unread cache on tick (not every render)
-		if a.dmStore != nil {
-			a.dmUnreadCache = a.dmStore.UnreadCount(a.session.Fingerprint)
-		}
 		if a.state == stateTavern {
+			a.refreshCaches()
 			a.chat.Tick()
 			if TickGifAnimations(a.chat.messages) {
 				a.chat.renderMessages() // update viewport content without scrolling
@@ -494,6 +500,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.transPos = 0.0
 				a.transVel = 0.0
 				a.doLayout()
+				a.refreshCaches()
 				a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
 					"Welcome to the tavern. Type /help for commands."))
 				if banner := a.store.GetBanner(); banner != "" {
@@ -1328,6 +1335,65 @@ func (a *App) markMentionRead(unreadIdx int) {
 	}
 }
 
+func (a *App) refreshCaches() {
+	a.cachedWeeklyCount, _ = a.store.WeeklyVisitorCount()
+	a.cachedAllTimeCount = a.store.AllTimeVisitorCount()
+
+	allRooms := a.store.AllRooms()
+	roomInfos := make([]RoomInfo, 0, len(allRooms))
+	for _, rName := range allRooms {
+		roomInfos = append(roomInfos, RoomInfo{
+			Name:  rName,
+			Count: len(a.hub.Sessions(rName)),
+		})
+	}
+	a.cachedRoomInfos = roomInfos
+	a.cachedActivityCounts = a.store.RecentActivityCounts(10)
+	a.cachedSSHLinks = a.store.AllSSHLinks()
+
+	// Online names for current room
+	sessions := a.hub.Sessions(a.session.Room)
+	var names []string
+	for _, s := range sessions {
+		name := s.Nickname
+		if identity.IsOwnerFingerprint(s.Fingerprint, a.ownerFingerprint) {
+			name = identity.OwnerDisplayName(a.ownerName)
+		} else if s.Flair {
+			name = "~" + name
+		}
+		if a.wargameStore != nil {
+			if lvl := a.wargameStore.UserTotalLevel(s.Fingerprint); lvl > 0 {
+				name = fmt.Sprintf("%s %d", name, lvl)
+			}
+		}
+		names = append(names, name)
+	}
+	if a.session.Room == a.firstRoom {
+		names = append(names, "◆ bartender")
+	}
+	sort.Strings(names)
+	a.cachedOnlineNames = names
+
+	// Leaderboard
+	if a.wargameStore != nil {
+		entries := a.wargameStore.Leaderboard(3)
+		mini := make([]LeaderboardMini, 0, len(entries))
+		for _, e := range entries {
+			mini = append(mini, LeaderboardMini{
+				Name:   e.Nickname,
+				Level:  e.TotalLevel,
+				Points: e.TotalPoints,
+			})
+		}
+		a.cachedLeaderboard = mini
+	}
+
+	// DM unread
+	if a.dmStore != nil {
+		a.dmUnreadCache = a.dmStore.UnreadCount(a.session.Fingerprint)
+	}
+}
+
 func (a *App) toggleDMMode() {
 	a.dmMode = !a.dmMode
 	if a.dmMode {
@@ -1536,63 +1602,21 @@ func (a App) View() tea.View {
 		return v
 	}
 
-	// Render the tavern view (used for both transition and normal)
+	// Use cached values — refreshed on tick, never query DB in View()
 	a.topBar.OnlineCount = a.hub.OnlineCount()
-	wc, _ := a.store.WeeklyVisitorCount()
-	a.topBar.WeeklyCount = wc
-	a.topBar.AllTimeCount = a.store.AllTimeVisitorCount()
+	a.topBar.WeeklyCount = a.cachedWeeklyCount
+	a.topBar.AllTimeCount = a.cachedAllTimeCount
 
-	sessions := a.hub.Sessions(a.session.Room)
-	var onlineNames []string
-	for _, s := range sessions {
-		name := s.Nickname
-		if identity.IsOwnerFingerprint(s.Fingerprint, a.ownerFingerprint) {
-			name = identity.OwnerDisplayName(a.ownerName)
-		} else if s.Flair {
-			name = "~" + name
-		}
-		// Append wargame level badge (compact)
-		if a.wargameStore != nil {
-			if lvl := a.wargameStore.UserTotalLevel(s.Fingerprint); lvl > 0 {
-				name = fmt.Sprintf("%s %d", name, lvl)
-			}
-		}
-		onlineNames = append(onlineNames, name)
-	}
-	if a.session.Room == a.firstRoom {
-		onlineNames = append(onlineNames, "◆ bartender")
-	}
-	sort.Strings(onlineNames)
-	a.online.Users = onlineNames
+	a.online.Users = a.cachedOnlineNames
 	a.online.Tankard = &a.tankard
-	if a.wargameStore != nil {
-		entries := a.wargameStore.Leaderboard(3)
-		var mini []LeaderboardMini
-		for _, e := range entries {
-			mini = append(mini, LeaderboardMini{
-				Name:   e.Nickname,
-				Level:  e.TotalLevel,
-				Points: e.TotalPoints,
-			})
-		}
-		a.online.Leaderboard = mini
-	}
+	a.online.Leaderboard = a.cachedLeaderboard
+
 	a.rooms.CurrentRoom = a.session.Room
-	var roomInfos []RoomInfo
-	for _, rName := range a.store.AllRooms() {
-		roomInfos = append(roomInfos, RoomInfo{
-			Name:  rName,
-			Count: len(a.hub.Sessions(rName)),
-		})
-	}
-	a.rooms.Rooms = roomInfos
+	a.rooms.Rooms = a.cachedRoomInfos
 	a.rooms.RoomTypes = a.roomTypes
-	a.rooms.ActivityCounts = a.store.RecentActivityCounts(10)
+	a.rooms.ActivityCounts = a.cachedActivityCounts
+	a.rooms.SSHLinks = a.cachedSSHLinks
 
-	// SSH links for sidebar
-	a.rooms.SSHLinks = a.store.AllSSHLinks()
-
-	// Build mention counts for room badges
 	mentionCounts := make(map[string]int)
 	for _, m := range a.mentions {
 		if !m.Read {
