@@ -42,7 +42,7 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// DB returns the underlying database connection for use by other packages.
+// DB exposes the raw db handle.
 func (s *Store) DB() *sql.DB {
 	return s.db
 }

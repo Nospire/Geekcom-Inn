@@ -376,14 +376,14 @@ func runPurge() {
 }
 
 func runServer() {
-	// Redirect logs to file so they don't corrupt connected TUI sessions
+	// log to file
 	logFile, err := os.OpenFile("tavrn.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err == nil {
 		log.SetOutput(logFile)
 		defer logFile.Close()
 	}
 
-	// Load tavern config — required for startup
+	// config
 	configPath := resolvedPath("tavern.yaml")
 	if _, statErr := os.Stat(configPath); os.IsNotExist(statErr) {
 		fmt.Fprintln(os.Stderr, "ERROR: tavern.yaml not found.")
@@ -445,7 +445,7 @@ func runServer() {
 
 	pollStore := poll.NewStore()
 
-	// Bartender AI — disabled if OPENAI_API_KEY is not set
+	// bartender
 	var bt *bartender.Bartender
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey != "" {
@@ -480,7 +480,7 @@ func runServer() {
 	}
 
 	port := getPort()
-	// GIF search — disabled if KLIPY_API_KEY is not set
+	// gif client
 	var gifClient *gif.KlipyClient
 	if klipyKey := os.Getenv("KLIPY_API_KEY"); klipyKey != "" {
 		gifClient = gif.NewKlipyClient(klipyKey)
@@ -489,7 +489,7 @@ func runServer() {
 		log.Println("gif search: disabled (no KLIPY_API_KEY)")
 	}
 
-	// Web search for bartender — Exa with DuckDuckGo fallback
+	// web search
 	var searcher *search.Searcher
 	exaKey := os.Getenv("EXA_API_KEY")
 	searcher = search.New(exaKey)

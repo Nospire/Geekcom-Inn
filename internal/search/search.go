@@ -206,10 +206,10 @@ func NeedsSearch(text string) bool {
 	return true
 }
 
-// FormatForLLM formats search results into context for the bartender.
-func FormatForLLM(results []Result) string {
+// FormatContext turns search results into a readable block for the bartender prompt.
+func FormatContext(results []Result) string {
 	var b strings.Builder
-	b.WriteString("Search results (use these to answer, stay in character):\n")
+	b.WriteString("Web results:\n")
 	for i, r := range results {
 		fmt.Fprintf(&b, "%d. %s", i+1, r.Snippet)
 		if r.URL != "" {

@@ -29,11 +29,11 @@ func TestNeedsSearch(t *testing.T) {
 	}
 }
 
-func TestFormatForLLM(t *testing.T) {
+func TestFormatContext(t *testing.T) {
 	results := []Result{
 		{Title: "Test", URL: "https://example.com", Snippet: "This is a test result"},
 	}
-	formatted := FormatForLLM(results)
+	formatted := FormatContext(results)
 	if formatted == "" {
 		t.Error("expected non-empty output")
 	}

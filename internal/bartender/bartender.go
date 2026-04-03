@@ -96,7 +96,7 @@ type MemoryStore interface {
 	BartenderUserNote(fingerprint string) string
 }
 
-// Bartender handles the tavern bartender AI persona.
+// Bartender runs the bartender character in the lounge.
 type Bartender struct {
 	apiKey    string
 	soul      string
@@ -256,10 +256,9 @@ func (b *Bartender) Respond(recentMessages []ChatMsg, state TavernState, trigger
 	// Mood
 	moodBlock := b.moodBlock()
 
-	// Web search context (if provided)
 	var searchBlock string
 	if len(searchContext) > 0 && searchContext[0] != "" {
-		searchBlock = "\n\n" + searchContext[0] + "\nUse this info to answer accurately but stay in character. Keep it simple."
+		searchBlock = "\n\n" + searchContext[0] + "\nAnswer using these results. Keep it short."
 	}
 
 	systemPrompt := b.soul + memoryBlock + userBlock + ownerBlock + stateBlock + moodBlock + searchBlock

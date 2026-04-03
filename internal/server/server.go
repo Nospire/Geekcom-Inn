@@ -291,11 +291,11 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 							}
 						}
 					}()
-					// Search the web if the message is a knowledge question
+					// web search if needed
 					var searchCtx string
 					if s.cfg.Searcher != nil && search.NeedsSearch(msg.Text) {
 						if results, err := s.cfg.Searcher.Search(msg.Text); err == nil {
-							searchCtx = search.FormatForLLM(results)
+							searchCtx = search.FormatContext(results)
 							log.Printf("bartender: web search for %q (%d results)", msg.Text, len(results))
 						}
 					}

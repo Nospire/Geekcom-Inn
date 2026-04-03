@@ -30,7 +30,7 @@ type embeddingResponse struct {
 	Error *apiError       `json:"error,omitempty"`
 }
 
-// embed calls the OpenAI embedding API and returns the vector.
+// embed returns a vector representation of the text.
 func (b *Bartender) embed(text string) ([]float32, error) {
 	reqBody := embeddingRequest{
 		Model: embeddingModel,

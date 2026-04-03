@@ -28,7 +28,7 @@ var Changelog = []Entry{
 	{
 		Version: "0.3",
 		Changes: []string{
-			"The Shadow — AI bartender in the lounge, @bartender to talk",
+			"The Shadow — bartender in the lounge, @bartender to talk",
 			"bartender remembers regulars across sessions",
 			"bartender drops unprompted remarks when the bar is active",
 			"mood system — gets grumpier the more you bother him",
