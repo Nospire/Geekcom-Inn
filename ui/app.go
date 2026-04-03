@@ -453,7 +453,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.dmInConvo = true
 		a.dmChat = NewDMChat(msg.PeerFP, msg.PeerNick,
 			a.session.Fingerprint, a.session.Nickname, a.session.ColorIndex)
-		a.dmChat.SetSize(a.chatWidth, a.height-5)
+		a.doLayout()
 		if a.dmStore != nil {
 			msgs, _ := a.dmStore.Messages(a.session.Fingerprint, msg.PeerFP, 50)
 			a.dmChat.SetMessages(msgs)
@@ -523,8 +523,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Global keybinds — F-keys and ctrl sequences safe for SSH
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		switch keyMsg.String() {
-		case "f1", "?":
-			if a.roomTypes[a.session.Room] == "gallery" || !a.chat.HasInput() {
+		case "f1":
+			a.modal = ModalHelp
+			a.helpModal = NewHelpModal()
+			return a, nil
+		case "?":
+			if !a.dmMode && (a.roomTypes[a.session.Room] == "gallery" || !a.chat.HasInput()) {
 				a.modal = ModalHelp
 				a.helpModal = NewHelpModal()
 				return a, nil
@@ -1019,7 +1023,7 @@ func (a *App) handleCommand(parsed chat.ParseResult) tea.Cmd {
 		a.dmPeerNick = name
 		a.dmChat = NewDMChat(peerFP, name,
 			a.session.Fingerprint, a.session.Nickname, a.session.ColorIndex)
-		a.dmChat.SetSize(a.chatWidth, a.height-5)
+		a.doLayout()
 		msgs, _ := a.dmStore.Messages(a.session.Fingerprint, peerFP, 50)
 		a.dmChat.SetMessages(msgs)
 		a.dmStore.MarkRead(a.session.Fingerprint, peerFP)
@@ -1328,8 +1332,8 @@ func (a *App) toggleDMMode() {
 		if a.dmStore != nil {
 			convos := a.dmStore.Conversations(a.session.Fingerprint)
 			a.dmInbox = NewDMInbox(convos)
-			a.dmInbox.SetSize(a.chatWidth, a.height-5)
 		}
+		a.doLayout()
 	}
 }
 
@@ -1499,6 +1503,12 @@ func (a *App) doLayout() {
 	a.gallery.SetScreenOffset(roomsWidth, topBarHeight)
 	if a.sudokuView != nil {
 		a.sudokuView.SetSize(chatWidth, mainHeight)
+	}
+	if a.dmMode {
+		a.dmInbox.SetSize(chatWidth, mainHeight)
+		if a.dmInConvo {
+			a.dmChat.SetSize(chatWidth, mainHeight)
+		}
 	}
 }
 
