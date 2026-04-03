@@ -134,6 +134,11 @@ func (c *ChatView) addSysLog(text string) {
 	}
 }
 
+// AddSystemLog adds a temporary log message (auto-expires after a few seconds).
+func (c *ChatView) AddSystemLog(text string) {
+	c.addSysLog(text)
+}
+
 func (c *ChatView) pruneExpiredLogs() {
 	now := time.Now()
 	n := 0

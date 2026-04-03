@@ -26,6 +26,7 @@ type RoomsPanel struct {
 	ActivityCounts map[string]int // room name → messages in last 10min
 	SSHLinks       []string
 	RoomTypes      map[string]string // room name → type
+	DMUnread       int               // unread DM count
 }
 
 func NewRoomsPanel() RoomsPanel {
@@ -116,6 +117,20 @@ func (r RoomsPanel) View() string {
 			b.WriteString(r.renderRoom(rm, contentW))
 		}
 	}
+
+	// DMs section
+	b.WriteString("\n")
+	b.WriteString(sep)
+	b.WriteString("\n")
+	b.WriteString(header.Render("DMs"))
+	if r.DMUnread > 0 {
+		badge := lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).
+			Render(fmt.Sprintf(" %d", r.DMUnread))
+		b.WriteString(badge)
+	}
+	b.WriteString("\n")
+	dmHint := lipgloss.NewStyle().Foreground(ColorDim)
+	b.WriteString(" " + dmHint.Render("TAB to open") + "\n")
 
 	// Other SSH section
 	if len(r.SSHLinks) > 0 {

@@ -33,6 +33,7 @@ const (
 	MsgPollVote     // vote cast on poll
 	MsgPollClose    // poll closed by creator
 	MsgGif          // animated GIF in chat
+	MsgDM           // direct message between two users
 )
 
 // NoteData carries sticky note info through the hub.

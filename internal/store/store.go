@@ -559,6 +559,7 @@ func (s *Store) PurgeAll() error {
 	tx.Exec(`DELETE FROM chat_messages`)
 	tx.Exec(`DELETE FROM gallery_notes`)
 	tx.Exec(`DELETE FROM banner`)
+	tx.Exec(`DELETE FROM direct_messages`)
 	if err := tx.Commit(); err != nil {
 		return err
 	}

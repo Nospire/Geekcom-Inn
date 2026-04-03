@@ -86,6 +86,31 @@ func (h *Hub) BroadcastAll(msg session.Msg) {
 	}
 }
 
+// SendTo delivers a message directly to a specific session by fingerprint.
+// Returns true if the user is online and received the message.
+func (h *Hub) SendTo(fingerprint string, msg session.Msg) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	s, ok := h.sessions[fingerprint]
+	if !ok {
+		return false
+	}
+	select {
+	case s.Send <- msg:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsOnline checks if a fingerprint has an active session.
+func (h *Hub) IsOnline(fingerprint string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	_, ok := h.sessions[fingerprint]
+	return ok
+}
+
 func (h *Hub) OnlineCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

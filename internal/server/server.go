@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -14,6 +15,7 @@ import (
 	lm "charm.land/wish/v2/elapsed"
 	"github.com/charmbracelet/ssh"
 	"tavrn.sh/internal/bartender"
+	"tavrn.sh/internal/dm"
 	"tavrn.sh/internal/gif"
 	"tavrn.sh/internal/hub"
 	"tavrn.sh/internal/identity"
@@ -47,6 +49,7 @@ type Config struct {
 	GifClient        *gif.KlipyClient
 	WargameStore     *wargame.Store
 	Searcher         *search.Searcher
+	DMStore          *dm.Store
 }
 
 type Server struct {
@@ -254,6 +257,17 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 	}
 
 	onSend := func(msg session.Msg) {
+		// DM routing: deliver to recipient only, don't broadcast
+		if msg.Type == session.MsgDM {
+			parts := strings.SplitN(msg.Text, "\x00", 2)
+			if len(parts) == 2 {
+				toFP := parts[0]
+				// Deliver to recipient if online
+				s.cfg.Hub.SendTo(toFP, msg)
+			}
+			return
+		}
+
 		switch msg.Type {
 		case session.MsgChat:
 			s.cfg.Store.SaveMessage(msg.Room, msg.Fingerprint, msg.Nickname, msg.ColorIndex, msg.Text, false)
@@ -347,7 +361,8 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 	model := ui.NewApp(sess, s.cfg.Store, s.cfg.Hub, onSend, s.cfg.SudokuGame, s.cfg.PollStore,
 		s.cfg.TavernName, s.cfg.TavernDomain, s.cfg.Tagline,
 		s.cfg.OwnerName, s.cfg.OwnerFingerprint, s.cfg.FirstRoom,
-		s.cfg.RoomTypes, s.cfg.GifClient, s.cfg.WargameStore)
+		s.cfg.RoomTypes, s.cfg.GifClient, s.cfg.WargameStore,
+		s.cfg.DMStore)
 	return model, nil
 }
 

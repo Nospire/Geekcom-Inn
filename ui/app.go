@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/harmonica"
 	"tavrn.sh/internal/chat"
+	"tavrn.sh/internal/dm"
 	"tavrn.sh/internal/gif"
 	"tavrn.sh/internal/hub"
 	"tavrn.sh/internal/identity"
@@ -95,6 +96,15 @@ type App struct {
 	sudokuView *SudokuView
 	sudokuGame *sudoku.Game
 
+	// Direct messages
+	dmStore    *dm.Store
+	dmMode     bool // true = DM screen, false = tavern
+	dmInbox    DMInbox
+	dmChat     DMChat
+	dmInConvo  bool   // true = viewing a conversation, false = inbox
+	dmPeerFP   string // current DM partner fingerprint
+	dmPeerNick string // current DM partner nickname
+
 	// Tankard collectible
 	tankard        TankardView
 	tankardFocused bool
@@ -138,7 +148,8 @@ func (a App) wargameRoomNames() []string {
 func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(session.Msg),
 	game *sudoku.Game, ps *poll.Store,
 	tavernName, tavernDomain, tagline, ownerName, ownerFingerprint, firstRoom string,
-	roomTypes map[string]string, gifClient *gif.KlipyClient, ws *wargame.Store) App {
+	roomTypes map[string]string, gifClient *gif.KlipyClient, ws *wargame.Store,
+	ds *dm.Store) App {
 	app := App{
 		state:            stateSplash,
 		splash:           NewSplash(sess.Nickname, sess.Fingerprint, sess.Flair, tavernDomain, tagline),
@@ -165,6 +176,7 @@ func NewApp(sess *session.Session, st *store.Store, h *hub.Hub, onSend func(sess
 		gifClient:        gifClient,
 		wargameStore:     ws,
 		seenWargameRooms: make(map[string]bool),
+		dmStore:          ds,
 	}
 	app.chat.SetOwnNickname(sess.Nickname)
 	app.chat.OwnerName = ownerName
@@ -411,6 +423,53 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.modal = ModalNone
 		return a, nil
+
+	case DMSendMsg:
+		if a.dmStore != nil {
+			a.dmStore.Send(a.session.Fingerprint, msg.ToFP, a.session.Nickname, msg.Text)
+			// Add to local view immediately
+			a.dmChat.AddMessage(dm.DirectMessage{
+				FromFP:    a.session.Fingerprint,
+				ToFP:      msg.ToFP,
+				FromNick:  a.session.Nickname,
+				Text:      msg.Text,
+				CreatedAt: time.Now(),
+			})
+			// Deliver via hub to recipient
+			a.onSend(session.Msg{
+				Type:        session.MsgDM,
+				Fingerprint: a.session.Fingerprint,
+				Nickname:    a.session.Nickname,
+				ColorIndex:  a.session.ColorIndex,
+				Text:        msg.ToFP + "\x00" + msg.Text,
+				Room:        "dm",
+			})
+		}
+		return a, nil
+
+	case DMOpenConvoMsg:
+		a.dmPeerFP = msg.PeerFP
+		a.dmPeerNick = msg.PeerNick
+		a.dmInConvo = true
+		a.dmChat = NewDMChat(msg.PeerFP, msg.PeerNick,
+			a.session.Fingerprint, a.session.Nickname, a.session.ColorIndex)
+		a.dmChat.SetSize(a.chatWidth, a.height-5)
+		if a.dmStore != nil {
+			msgs, _ := a.dmStore.Messages(a.session.Fingerprint, msg.PeerFP, 50)
+			a.dmChat.SetMessages(msgs)
+			a.dmStore.MarkRead(a.session.Fingerprint, msg.PeerFP)
+		}
+		return a, nil
+
+	case DMBackToInboxMsg:
+		a.dmInConvo = false
+		a.dmPeerFP = ""
+		a.dmPeerNick = ""
+		if a.dmStore != nil {
+			convos := a.dmStore.Conversations(a.session.Fingerprint)
+			a.dmInbox.SetConversations(convos)
+		}
+		return a, nil
 	}
 
 	// Splash state — handle keys directly (tick/resize handled above)
@@ -511,6 +570,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.leaderboardModal = NewLeaderboardModal(entries, progress, a.session.Fingerprint)
 				return a, nil
 			}
+		case "tab":
+			// Toggle DM mode only when input is empty and not in gallery/games
+			if a.dmStore != nil && !a.chat.HasInput() &&
+				a.roomTypes[a.session.Room] != "gallery" &&
+				!a.chat.MentionPopupActive() {
+				a.toggleDMMode()
+				return a, nil
+			}
 		}
 	}
 
@@ -531,6 +598,18 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return a, nil
+	}
+
+	// DM mode captures all input
+	if a.dmMode {
+		if a.dmInConvo {
+			var cmd tea.Cmd
+			a.dmChat, cmd = a.dmChat.Update(msg)
+			return a, cmd
+		}
+		var cmd tea.Cmd
+		a.dmInbox, cmd = a.dmInbox.Update(msg)
+		return a, cmd
 	}
 
 	// Gallery room: single-key shortcuts + mouse
@@ -907,6 +986,40 @@ func (a *App) handleCommand(parsed chat.ParseResult) tea.Cmd {
 		}
 		a.modal = ModalSubmitFlag
 		a.submitModal = NewSubmitModal(a.session.Room, currentLevel, maxLevel)
+	case "dm":
+		if a.dmStore == nil {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "DMs are not enabled."))
+			return nil
+		}
+		name := strings.TrimSpace(parsed.Args)
+		name = strings.TrimPrefix(name, "@")
+		if name == "" {
+			// Just toggle to DM mode
+			a.toggleDMMode()
+			return nil
+		}
+		// Look up user by nickname
+		peerFP, err := a.store.FingerprintByNickname(name)
+		if err != nil {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
+				fmt.Sprintf("User '%s' not found.", name)))
+			return nil
+		}
+		if peerFP == a.session.Fingerprint {
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "You can't DM yourself."))
+			return nil
+		}
+		// Switch to DM mode and open conversation
+		a.dmMode = true
+		a.dmInConvo = true
+		a.dmPeerFP = peerFP
+		a.dmPeerNick = name
+		a.dmChat = NewDMChat(peerFP, name,
+			a.session.Fingerprint, a.session.Nickname, a.session.ColorIndex)
+		a.dmChat.SetSize(a.chatWidth, a.height-5)
+		msgs, _ := a.dmStore.Messages(a.session.Fingerprint, peerFP, 50)
+		a.dmChat.SetMessages(msgs)
+		a.dmStore.MarkRead(a.session.Fingerprint, peerFP)
 	case "leaderboard", "lb":
 		if a.wargameStore == nil {
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Wargame system not available."))
@@ -1044,6 +1157,30 @@ func (a *App) handleHubMsg(msg session.Msg) {
 			GifURL:     msg.GifURL,
 			Timestamp:  msg.Timestamp,
 		})
+	case session.MsgDM:
+		// Incoming DM from another user
+		parts := strings.SplitN(msg.Text, "\x00", 2)
+		if len(parts) != 2 {
+			break
+		}
+		text := parts[1]
+		// If we're in DM chat with this sender, add to view
+		if a.dmMode && a.dmInConvo && a.dmPeerFP == msg.Fingerprint {
+			a.dmChat.AddMessage(dm.DirectMessage{
+				FromFP:    msg.Fingerprint,
+				ToFP:      a.session.Fingerprint,
+				FromNick:  msg.Nickname,
+				Text:      text,
+				CreatedAt: time.Now(),
+			})
+			// Auto-mark as read since we're viewing this conversation
+			if a.dmStore != nil {
+				a.dmStore.MarkRead(a.session.Fingerprint, msg.Fingerprint)
+			}
+		} else {
+			// Show notification in tavern chat
+			a.chat.AddSystemLog(fmt.Sprintf("DM from %s", msg.Nickname))
+		}
 	}
 }
 
@@ -1156,6 +1293,20 @@ func (a *App) markMentionRead(unreadIdx int) {
 				return
 			}
 			count++
+		}
+	}
+}
+
+func (a *App) toggleDMMode() {
+	a.dmMode = !a.dmMode
+	if a.dmMode {
+		a.dmInConvo = false
+		a.dmPeerFP = ""
+		a.dmPeerNick = ""
+		if a.dmStore != nil {
+			convos := a.dmStore.Conversations(a.session.Fingerprint)
+			a.dmInbox = NewDMInbox(convos)
+			a.dmInbox.SetSize(a.chatWidth, a.height-5)
 		}
 	}
 }
@@ -1412,16 +1563,28 @@ func (a App) View() tea.View {
 		}
 	}
 	a.rooms.MentionCounts = mentionCounts
+	if a.dmStore != nil {
+		dmUnread := a.dmStore.UnreadCount(a.session.Fingerprint)
+		a.rooms.DMUnread = dmUnread
+		a.bottomBar.DMUnread = dmUnread
+	}
 
 	a.bottomBar.MentionCount = a.unreadMentionCount("")
 	a.bottomBar.IsTankard = a.tankardFocused
+	a.bottomBar.IsDMMode = a.dmMode
 
 	topBar := a.topBar.View()
 	bottomBar := a.bottomBar.View()
 
-	// Main content: gallery, sudoku, wargame, or chat depending on room
+	// Main content: DM mode, gallery, sudoku, wargame, or chat
 	var centerView string
-	if a.roomTypes[a.session.Room] == "gallery" {
+	if a.dmMode {
+		if a.dmInConvo {
+			centerView = a.dmChat.View()
+		} else {
+			centerView = a.dmInbox.View()
+		}
+	} else if a.roomTypes[a.session.Room] == "gallery" {
 		centerView = a.gallery.View()
 	} else if a.roomTypes[a.session.Room] == "games" && a.sudokuView != nil {
 		centerView = a.sudokuView.View()

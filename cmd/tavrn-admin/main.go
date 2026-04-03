@@ -17,6 +17,7 @@ import (
 
 	"tavrn.sh/internal/bartender"
 	"tavrn.sh/internal/config"
+	"tavrn.sh/internal/dm"
 	"tavrn.sh/internal/gif"
 	"tavrn.sh/internal/hub"
 	"tavrn.sh/internal/jukebox"
@@ -519,6 +520,7 @@ func runServer() {
 		GifClient:        gifClient,
 		WargameStore:     wargame.New(st.DB()),
 		Searcher:         searcher,
+		DMStore:          initDMStore(st),
 	})
 	if err != nil {
 		log.Fatalf("server: %v", err)
@@ -744,6 +746,15 @@ func resolveCommand(name string, env []string) (string, error) {
 	}
 
 	return "", fmt.Errorf("exec: %q not found in PATH", name)
+}
+
+func initDMStore(st *store.Store) *dm.Store {
+	ds, err := dm.New(st.DB())
+	if err != nil {
+		log.Printf("dm store: %v", err)
+		return nil
+	}
+	return ds
 }
 
 func startPurgeScheduler(st *store.Store, h *hub.Hub, ps *poll.Store) {
