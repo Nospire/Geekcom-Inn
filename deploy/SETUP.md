@@ -53,7 +53,29 @@ su - tavrn -c "
 
 ---
 
-## 5. Build the server binary
+## 5. Configure the tavern
+
+```bash
+# copy and edit the config (required — server won't start without it)
+su - tavrn -c "
+  cd ~/tavrn
+  cp tavern.yaml.example tavern.yaml
+  # edit tavern.yaml: set your tavern name, domain, owner fingerprint
+"
+
+# set up environment variables
+cat > /etc/tavrn/env << 'EOF'
+OPENAI_API_KEY=
+KLIPY_API_KEY=
+EXA_API_KEY=
+EOF
+```
+
+Find your SSH fingerprint: `ssh-keygen -lf ~/.ssh/id_ed25519.pub`
+
+---
+
+## 6. Build the server binary
 
 ```bash
 su - tavrn -c "
@@ -65,7 +87,7 @@ su - tavrn -c "
 
 ---
 
-## 6. Install deploy assets
+## 7. Install deploy assets
 
 Copy each file from this `deploy/` directory into its system location.
 

@@ -26,3 +26,9 @@ rooms:
     type: games                 # Sudoku and other games
   - name: "suggestions"
     type: chat
+
+  # Wargame CTF rooms (optional — for OverTheWire challenges)
+  # - name: "bandit"
+  #   type: wargame
+  # - name: "natas"
+  #   type: wargame
