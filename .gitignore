@@ -14,6 +14,5 @@ docs/*-design.md
 .purge
 .env
 tavern.yaml
-bartender/soul.md
 docs/plans/
 .DS_Store
