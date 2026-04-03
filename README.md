@@ -1,14 +1,17 @@
 <div align="center">
 
-# tavrn.sh
+# Geekcom Inn
 
-A terminal tavern over SSH.
+## Таверна ещё не открыта
 
-Chat and hang out with strangers — right from your terminal.
+Русскоязычное SSH-пространство от Geekcom.
 
-No signup. No account. Your SSH key is your identity.
+Сейчас проект находится в стадии адаптации:
+русификация интерфейса, замена брендинга, настройка комнат,
+инфраструктуры и публичного хоста.
 
-Everything resets weekly. Nothing is permanent.
+**Статус:** pre-launch  
+**Будущий адрес:** `inn.geekcom.org`
 
 </div>
 
@@ -16,49 +19,67 @@ Everything resets weekly. Nothing is permanent.
 
 <div align="center">
 
-### Connect
+### Подключение
 
+```bash
+ssh inn.geekcom.org
 ```
-ssh tavrn.sh
-```
+
+Пока хост ещё не открыт для гостей.
 
 </div>
 
 ---
 
-### What's inside
+## Что здесь будет
 
-**Rooms** — Lounge, gallery, games, suggestions, and wargame CTF rooms.
+**Комнаты** — общий зал, галерея, игровые комнаты, предложения и тематические пространства.
 
-**Gallery** — A shared sticky note board. Post, drag, read what others left behind.
+**Галерея** — общая доска заметок, где можно оставлять, читать и перемещать сообщения.
 
-**Wargames** — OverTheWire CTF rooms with flag submission, leaderboard, and points.
+**Варгеймы** — комнаты с заданиями, флагами, очками и таблицей лидеров.
 
-**GIFs** — Search and send animated GIFs inline in chat with `/gif`.
+**GIF** — поиск и отправка GIF прямо из чата через `/gif`.
 
-**Bartender** — The lounge bartender. Tag with `@bartender`.
+**Бармен** — встроенный собеседник в общем зале. Вызывается через `@bartender`.
 
-**Music** — 24/7 radio streaming.
+**Музыка** — постоянный фоновый стрим внутри таверны.
 
-### Keybinds
+---
 
-```
-F1  help        F2  nickname     F3  rooms       F4  mentions
-F5  post note   F6  tankard      F7  leaderboard
+## Управление
+
+```text
+F1  помощь        F2  никнейм      F3  комнаты      F4  упоминания
+F5  заметка       F6  кружка       F7  лидеры
 ```
 
 ---
 
-### Run your own
+## Текущий статус
 
-Fork this and run your own tavern. The `tavrn` name is reserved (see [TRADEMARK.md](TRADEMARK.md)), but the engine is yours.
+Geekcom Inn пока ещё не запущен публично.
 
-**Quick start:**
+В репозитории идёт:
+- перевод интерфейса на русский язык;
+- замена названия, описаний и визуального стиля;
+- настройка собственного домена и инфраструктуры;
+- подготовка к первому публичному открытию.
+
+До запуска отдельные функции, тексты и команды могут меняться.
+
+---
+
+## Развернуть у себя
+
+Проект можно запускать локально уже сейчас, пока идёт адаптация.
+
+**Быстрый старт:**
 
 ```bash
-cp tavern.yaml.example tavern.yaml   # configure your tavern name, domain, rooms
-cp .env.example .env                  # add API keys (all optional)
-make run                              # build and connect
+cp tavern.yaml.example tavern.yaml   # настрой имя, домен и комнаты
+cp .env.example .env                 # добавь API-ключи при необходимости
+make run                             # собрать и запустить
 ```
 
 **Docker:**
@@ -69,29 +90,43 @@ cp .env.example .env
 docker compose up
 ```
 
-**Environment variables** (all optional):
+---
 
-| Variable | What it does |
+## Переменные окружения
+
+| Переменная | Назначение |
 |---|---|
-| `OPENAI_API_KEY` | Bartender character |
-| `KLIPY_API_KEY` | GIF search (`/gif`) |
-| `EXA_API_KEY` | Bartender web search |
-| `TAVRN_PORT` | SSH port (default: 2222) |
+| `OPENAI_API_KEY` | поведение и характер бармена |
+| `KLIPY_API_KEY` | поиск GIF через `/gif` |
+| `EXA_API_KEY` | веб-поиск для бармена |
+| `TAVRN_PORT` | SSH-порт, по умолчанию `2222` |
 
-**Admin CLI:**
+---
 
+## Административные команды
+
+На текущем этапе внутренняя CLI-утилита всё ещё использует исходное имя проекта.
+
+```bash
+tavrn --help
+tavrn --set-flag bandit 1 "flag"
+tavrn --bartender-off
 ```
-tavrn --help                         Full command list
-tavrn --set-flag bandit 1 "flag"     Set a wargame flag
-tavrn --bartender-off                Disable bartender live
-```
 
-See [deploy/SETUP.md](deploy/SETUP.md) for VPS deployment with systemd + Caddy.
+Для VPS-развёртывания смотри `deploy/SETUP.md`.
 
-### Built with
+---
 
-[Bubble Tea](https://github.com/charmbracelet/bubbletea) · [Wish](https://github.com/charmbracelet/wish) · [Lipgloss](https://github.com/charmbracelet/lipgloss) · Go · SQLite
+## Основа проекта
 
-### License
+Движок построен на open-source базе SSH-таверны с дальнейшей переработкой под Geekcom Inn.
 
-MIT — see [LICENSE](LICENSE)
+Используется стек:
+
+[Bubble Tea](https://github.com/charmbracelet/bubbletea) · [Wish](https://github.com/charmbracelet/wish) · [Lip Gloss](https://github.com/charmbracelet/lipgloss) · Go · SQLite
+
+---
+
+## Лицензия
+
+Код распространяется по лицензии MIT. Подробности — в файле [LICENSE](LICENSE).
