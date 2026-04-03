@@ -100,7 +100,7 @@ type App struct {
 	dmStore       *dm.Store
 	dmMode        bool // true = DM screen, false = tavern
 	dmInbox       DMInbox
-	dmChat        DMChat
+	dmChatView    ChatView
 	dmInConvo     bool   // true = viewing a conversation, false = inbox
 	dmPeerFP      string // current DM partner fingerprint
 	dmPeerNick    string // current DM partner nickname
@@ -241,7 +241,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.refreshCaches()
 			a.chat.Tick()
 			if TickGifAnimations(a.chat.messages) {
-				a.chat.renderMessages() // update viewport content without scrolling
+				a.chat.renderMessages()
+			}
+			if a.dmMode && a.dmInConvo {
+				a.dmChatView.Tick()
 			}
 			a.pruneExpiredMentions()
 			if a.sudokuView != nil {
@@ -438,15 +441,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DMSendMsg:
 		if a.dmStore != nil {
 			a.dmStore.Send(a.session.Fingerprint, msg.ToFP, a.session.Nickname, msg.Text)
-			// Add to local view immediately
-			a.dmChat.AddMessage(dm.DirectMessage{
-				FromFP:    a.session.Fingerprint,
-				ToFP:      msg.ToFP,
-				FromNick:  a.session.Nickname,
-				Text:      msg.Text,
-				CreatedAt: time.Now(),
-			})
-			// Deliver via hub to recipient
+			a.dmChatView.AddMessage(chat.NewUserMessage(
+				a.session.Fingerprint, a.session.Nickname, "dm", msg.Text, a.session.ColorIndex))
 			a.onSend(session.Msg{
 				Type:        session.MsgDM,
 				Fingerprint: a.session.Fingerprint,
@@ -462,14 +458,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.dmPeerFP = msg.PeerFP
 		a.dmPeerNick = msg.PeerNick
 		a.dmInConvo = true
-		a.dmChat = NewDMChat(msg.PeerFP, msg.PeerNick,
-			a.session.Fingerprint, a.session.Nickname, a.session.ColorIndex)
-		a.doLayout()
-		if a.dmStore != nil {
-			msgs, _ := a.dmStore.Messages(a.session.Fingerprint, msg.PeerFP, 50)
-			a.dmChat.SetMessages(msgs)
-			a.dmStore.MarkRead(a.session.Fingerprint, msg.PeerFP)
-		}
+		a.openDMConvo(msg.PeerFP, msg.PeerNick)
 		return a, nil
 
 	case DMBackToInboxMsg:
@@ -619,8 +608,18 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// DM mode captures all input
 	if a.dmMode {
 		if a.dmInConvo {
+			if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+				switch keyMsg.String() {
+				case "esc":
+					return a, func() tea.Msg { return DMBackToInboxMsg{} }
+				case "enter":
+					return a.handleDMInput()
+				case "ctrl+c":
+					return a, tea.Quit
+				}
+			}
 			var cmd tea.Cmd
-			a.dmChat, cmd = a.dmChat.Update(msg)
+			a.dmChatView, cmd = a.dmChatView.Update(msg)
 			return a, cmd
 		}
 		var cmd tea.Cmd
@@ -1033,22 +1032,11 @@ func (a *App) handleCommand(parsed chat.ParseResult) tea.Cmd {
 		a.dmInConvo = true
 		a.dmPeerFP = peerFP
 		a.dmPeerNick = name
-		a.dmChat = NewDMChat(peerFP, name,
-			a.session.Fingerprint, a.session.Nickname, a.session.ColorIndex)
-		a.doLayout()
-		msgs, _ := a.dmStore.Messages(a.session.Fingerprint, peerFP, 50)
-		a.dmChat.SetMessages(msgs)
-		a.dmStore.MarkRead(a.session.Fingerprint, peerFP)
-		// Send first message if provided
+		a.openDMConvo(peerFP, name)
 		if firstMsg != "" {
 			a.dmStore.Send(a.session.Fingerprint, peerFP, a.session.Nickname, firstMsg)
-			a.dmChat.AddMessage(dm.DirectMessage{
-				FromFP:    a.session.Fingerprint,
-				ToFP:      peerFP,
-				FromNick:  a.session.Nickname,
-				Text:      firstMsg,
-				CreatedAt: time.Now(),
-			})
+			a.dmChatView.AddMessage(chat.NewUserMessage(
+				a.session.Fingerprint, a.session.Nickname, "dm", firstMsg, a.session.ColorIndex))
 			a.onSend(session.Msg{
 				Type:        session.MsgDM,
 				Fingerprint: a.session.Fingerprint,
@@ -1196,22 +1184,14 @@ func (a *App) handleHubMsg(msg session.Msg) {
 			Timestamp:  msg.Timestamp,
 		})
 	case session.MsgDM:
-		// Incoming DM from another user
 		parts := strings.SplitN(msg.Text, "\x00", 2)
 		if len(parts) != 2 {
 			break
 		}
 		text := parts[1]
-		// If we're in DM chat with this sender, add to view
 		if a.dmMode && a.dmInConvo && a.dmPeerFP == msg.Fingerprint {
-			a.dmChat.AddMessage(dm.DirectMessage{
-				FromFP:    msg.Fingerprint,
-				ToFP:      a.session.Fingerprint,
-				FromNick:  msg.Nickname,
-				Text:      text,
-				CreatedAt: time.Now(),
-			})
-			// Auto-mark as read since we're viewing this conversation
+			a.dmChatView.AddMessage(chat.NewUserMessage(
+				msg.Fingerprint, msg.Nickname, "dm", text, msg.ColorIndex))
 			if a.dmStore != nil {
 				a.dmStore.MarkRead(a.session.Fingerprint, msg.Fingerprint)
 			}
@@ -1392,6 +1372,45 @@ func (a *App) refreshCaches() {
 	if a.dmStore != nil {
 		a.dmUnreadCache = a.dmStore.UnreadCount(a.session.Fingerprint)
 	}
+}
+
+func (a *App) openDMConvo(peerFP, peerNick string) {
+	a.dmChatView = NewChatView()
+	a.dmChatView.SetOwnNickname(a.session.Nickname)
+	a.doLayout()
+	if a.dmStore != nil {
+		msgs, _ := a.dmStore.Messages(a.session.Fingerprint, peerFP, 50)
+		for _, m := range msgs {
+			a.dmChatView.AddMessage(chat.NewUserMessage(
+				m.FromFP, m.FromNick, "dm", m.Text, 0))
+		}
+		a.dmStore.MarkRead(a.session.Fingerprint, peerFP)
+	}
+}
+
+func (a App) handleDMInput() (tea.Model, tea.Cmd) {
+	input := a.dmChatView.InputValue()
+	if input == "" {
+		return a, nil
+	}
+	text := sanitize.CleanChat(input)
+	if text == "" {
+		return a, nil
+	}
+	if a.dmStore != nil && a.dmPeerFP != "" {
+		a.dmStore.Send(a.session.Fingerprint, a.dmPeerFP, a.session.Nickname, text)
+		a.dmChatView.AddMessage(chat.NewUserMessage(
+			a.session.Fingerprint, a.session.Nickname, "dm", text, a.session.ColorIndex))
+		a.onSend(session.Msg{
+			Type:        session.MsgDM,
+			Fingerprint: a.session.Fingerprint,
+			Nickname:    a.session.Nickname,
+			ColorIndex:  a.session.ColorIndex,
+			Text:        a.dmPeerFP + "\x00" + text,
+			Room:        "dm",
+		})
+	}
+	return a, nil
 }
 
 func (a *App) toggleDMMode() {
@@ -1578,7 +1597,7 @@ func (a *App) doLayout() {
 	if a.dmMode {
 		a.dmInbox.SetSize(chatWidth, mainHeight)
 		if a.dmInConvo {
-			a.dmChat.SetSize(chatWidth, mainHeight)
+			a.dmChatView.SetSize(chatWidth, mainHeight)
 		}
 	}
 }
@@ -1638,7 +1657,7 @@ func (a App) View() tea.View {
 	var centerView string
 	if a.dmMode {
 		if a.dmInConvo {
-			centerView = a.dmChat.View()
+			centerView = a.dmChatView.View()
 		} else {
 			centerView = a.dmInbox.View()
 		}
