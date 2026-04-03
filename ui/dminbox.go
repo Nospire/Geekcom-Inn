@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -14,7 +15,6 @@ type DMOpenConvoMsg struct {
 	PeerNick string
 }
 
-// DMInbox shows the list of DM conversations.
 type DMInbox struct {
 	conversations []dm.Conversation
 	cursor        int
@@ -80,23 +80,22 @@ func (d DMInbox) View() string {
 		contentW = 20
 	}
 
-	b.WriteString(accent.Render("  DIRECT MESSAGES"))
+	b.WriteString("\n")
+	b.WriteString("  " + accent.Render("DIRECT MESSAGES"))
 	b.WriteString("\n")
 	b.WriteString("  " + dimmer.Render(strings.Repeat("─", contentW)))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
 	if len(d.conversations) == 0 {
+		b.WriteString("\n")
 		b.WriteString("  " + dim.Render("No conversations yet."))
 		b.WriteString("\n\n")
-		b.WriteString("  " + dim.Render("Use /dm <name> in the tavern to start one."))
+		b.WriteString("  " + dim.Render("Use ") + highlight.Render("/dm @name") + dim.Render(" in the tavern to start one."))
 		b.WriteString("\n")
 	}
 
-	maxNameW := 16
-	maxPreviewW := contentW - maxNameW - 10
-	if maxPreviewW < 10 {
-		maxPreviewW = 10
-	}
+	now := time.Now()
+	maxNameW := 14
 
 	for i, c := range d.conversations {
 		isCurrent := i == d.cursor
@@ -106,38 +105,63 @@ func (d DMInbox) View() string {
 			name = name[:maxNameW-1] + "."
 		}
 
-		preview := c.LastMessage
-		if len(preview) > maxPreviewW {
-			preview = preview[:maxPreviewW-1] + "."
+		// Preview text — single line, cleaned up
+		preview := strings.ReplaceAll(c.LastMessage, "\n", " ")
+		previewMaxW := contentW - maxNameW - 14
+		if previewMaxW < 10 {
+			previewMaxW = 10
 		}
-		// Strip newlines from preview
-		preview = strings.ReplaceAll(preview, "\n", " ")
+		if len(preview) > previewMaxW {
+			preview = preview[:previewMaxW-1] + "…"
+		}
 
-		var line string
+		// Relative time
+		timeStr := inboxRelativeTime(c.LastTime, now)
+		timeRendered := dimmer.Render(timeStr)
+
+		b.WriteString("\n")
+
 		if isCurrent {
-			indicator := highlight.Render("▸ ")
-			nameStr := amber.Render(name)
+			indicator := highlight.Render(" ▸ ")
+			nameStr := amber.Render(fmt.Sprintf("%-*s", maxNameW, name))
 			previewStr := sand.Render(preview)
-			line = indicator + nameStr + "  " + previewStr
+			b.WriteString(indicator + nameStr + " " + previewStr)
 		} else {
-			nameStr := sand.Render(name)
+			nameStr := sand.Render(fmt.Sprintf("%-*s", maxNameW, name))
 			previewStr := dim.Render(preview)
-			line = "  " + nameStr + "  " + previewStr
+			b.WriteString("   " + nameStr + " " + previewStr)
 		}
 
+		// Unread badge + time on same line
+		suffix := "  " + timeRendered
 		if c.UnreadCount > 0 {
-			badge := lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).
-				Render(fmt.Sprintf(" (%d)", c.UnreadCount))
-			line += badge
+			badge := amber.Render(fmt.Sprintf(" %d new", c.UnreadCount))
+			suffix = badge + suffix
 		}
-
-		b.WriteString(line)
+		b.WriteString(suffix)
 		b.WriteString("\n")
 	}
 
-	// Footer hints
+	// Footer
 	b.WriteString("\n")
-	b.WriteString("  " + dimmer.Render("↑↓ navigate  ENTER open  TAB back to tavern"))
+	b.WriteString("  " + dimmer.Render("↑↓ navigate · ENTER open · TAB back to tavern"))
 
 	return b.String()
+}
+
+func inboxRelativeTime(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	diff := now.Sub(t)
+	switch {
+	case diff < time.Minute:
+		return "now"
+	case diff < time.Hour:
+		return fmt.Sprintf("%dm", int(diff.Minutes()))
+	case diff < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(diff.Hours()))
+	default:
+		return t.Format("Jan 2")
+	}
 }

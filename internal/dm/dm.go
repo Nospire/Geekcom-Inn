@@ -98,7 +98,7 @@ func (s *Store) Messages(fpA, fpB string, limit int) ([]DirectMessage, error) {
 			continue
 		}
 		m.Read = readInt != 0
-		m.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", ts)
+		m.CreatedAt = parseDMTimestamp(ts)
 		msgs = append(msgs, m)
 	}
 	// Reverse to oldest-first
@@ -162,7 +162,7 @@ func (s *Store) Conversations(fp string) []Conversation {
 		`, fp, peerFP, peerFP, fp)
 		var ts string
 		row.Scan(&c.PeerNick, &c.LastMessage, &ts)
-		c.LastTime, _ = time.Parse("2006-01-02 15:04:05", ts)
+		c.LastTime = parseDMTimestamp(ts)
 
 		// Get the actual peer nickname (from their last sent message to us, or our last to them)
 		nickRow := s.db.QueryRow(`
@@ -199,4 +199,21 @@ func (s *Store) Purge() error {
 	defer s.mu.Unlock()
 	_, err := s.db.Exec(`DELETE FROM direct_messages`)
 	return err
+}
+
+var tsFormats = []string{
+	"2006-01-02 15:04:05",
+	"2006-01-02T15:04:05Z",
+	"2006-01-02T15:04:05",
+	"2006-01-02 15:04:05-07:00",
+	"2006-01-02 15:04:05+00:00",
+}
+
+func parseDMTimestamp(s string) time.Time {
+	for _, fmt := range tsFormats {
+		if t, err := time.Parse(fmt, s); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }

@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
@@ -19,7 +20,6 @@ type DMSendMsg struct {
 
 type DMBackToInboxMsg struct{}
 
-// DMChat renders a conversation with one person.
 type DMChat struct {
 	peerFP        string
 	peerNick      string
@@ -52,15 +52,15 @@ func NewDMChat(peerFP, peerNick, ownFP, ownNick string, ownColorIndex int) DMCha
 func (d *DMChat) SetSize(w, h int) {
 	d.width = w
 	d.height = h
-	inputH := 1
 	headerH := 3
-	vpH := h - inputH - headerH
+	inputH := 2
+	vpH := h - headerH - inputH
 	if vpH < 2 {
 		vpH = 2
 	}
 	d.viewport.SetWidth(w)
 	d.viewport.SetHeight(vpH)
-	d.input.SetWidth(w - 4)
+	d.input.SetWidth(w - 6)
 	d.renderMessages()
 }
 
@@ -75,24 +75,52 @@ func (d *DMChat) AddMessage(msg dm.DirectMessage) {
 }
 
 func (d *DMChat) renderMessages() {
-	dim := lipgloss.NewStyle().Foreground(ColorDim)
-	sand := lipgloss.NewStyle().Foreground(ColorSand)
+	now := time.Now()
+	wrapW := d.width - 12
+	if wrapW < 20 {
+		wrapW = 20
+	}
 
 	var lines []string
-	for _, m := range d.messages {
-		ts := m.CreatedAt.Format("15:04")
-		timeStr := dim.Render(ts)
+	prevFrom := ""
 
-		var nickStyle lipgloss.Style
-		if m.FromFP == d.ownFP {
-			nickStyle = NickStyle(d.ownColorIndex)
-		} else {
-			nickStyle = lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
+	for i, m := range d.messages {
+		isOwn := m.FromFP == d.ownFP
+		sameUser := m.FromFP == prevFrom
+		prevFrom = m.FromFP
+
+		if !sameUser {
+			// Blank line between different speakers (not before first)
+			if i > 0 {
+				lines = append(lines, "")
+			}
+
+			// Nick + timestamp header
+			var nickStyle lipgloss.Style
+			if isOwn {
+				nickStyle = NickStyle(d.ownColorIndex)
+			} else {
+				nickStyle = lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
+			}
+			nick := nickStyle.Render(m.FromNick)
+			ts := dmFormatTime(m.CreatedAt, now)
+			timeStr := lipgloss.NewStyle().Foreground(ColorDimmer).Render(ts)
+			lines = append(lines, fmt.Sprintf("    %s  %s", nick, timeStr))
 		}
 
-		nick := nickStyle.Render(m.FromNick)
-		text := sand.Render(m.Text)
-		lines = append(lines, fmt.Sprintf(" %s %s %s", timeStr, nick, text))
+		// Message text with word wrap
+		wrapped := wordWrap(m.Text, wrapW)
+		textStyle := lipgloss.NewStyle().Foreground(ColorSand)
+		for _, wl := range wrapped {
+			lines = append(lines, "      "+textStyle.Render(wl))
+		}
+	}
+
+	// Pad with empty lines if few messages so content doesn't stick to top
+	if len(lines) == 0 {
+		dim := lipgloss.NewStyle().Foreground(ColorDimmer)
+		lines = append(lines, "")
+		lines = append(lines, dim.Render("    No messages yet. Say something."))
 	}
 
 	content := strings.Join(lines, "\n")
@@ -134,7 +162,7 @@ func (d DMChat) Update(msg tea.Msg) (DMChat, tea.Cmd) {
 func (d DMChat) View() string {
 	accent := lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
 	dimmer := lipgloss.NewStyle().Foreground(ColorDimmer)
-	dim := lipgloss.NewStyle().Foreground(ColorDim)
+	highlight := lipgloss.NewStyle().Foreground(ColorHighlight)
 
 	contentW := d.width - 4
 	if contentW < 20 {
@@ -143,14 +171,40 @@ func (d DMChat) View() string {
 
 	// Header
 	var header strings.Builder
-	header.WriteString("  " + accent.Render("DM: "+d.peerNick))
+	header.WriteString("\n")
+	header.WriteString("  " + accent.Render("DM  ") + highlight.Render(d.peerNick))
 	header.WriteString("\n")
 	header.WriteString("  " + dimmer.Render(strings.Repeat("─", contentW)))
 	header.WriteString("\n")
 
-	// Footer with input
-	prompt := dim.Render(" > ")
-	inputLine := prompt + d.input.View()
+	// Input area
+	sep := dimmer.Render(strings.Repeat("─", contentW))
+	prompt := lipgloss.NewStyle().Foreground(ColorHighlight).Render(" › ")
+	inputLine := "\n" + "  " + sep + "\n" + prompt + d.input.View()
 
-	return header.String() + d.viewport.View() + "\n" + inputLine
+	return header.String() + d.viewport.View() + inputLine
+}
+
+// dmFormatTime shows relative or absolute time for DM messages.
+func dmFormatTime(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	diff := now.Sub(t)
+	switch {
+	case diff < 10*time.Second:
+		return "just now"
+	case diff < time.Minute:
+		return fmt.Sprintf("%ds ago", int(diff.Seconds()))
+	case diff < time.Hour:
+		mins := int(diff.Minutes())
+		if mins == 1 {
+			return "1 min ago"
+		}
+		return fmt.Sprintf("%d mins ago", mins)
+	case diff < 24*time.Hour:
+		return t.Format("15:04")
+	default:
+		return t.Format("Jan 02 15:04")
+	}
 }
