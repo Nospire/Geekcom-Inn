@@ -394,8 +394,8 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 	c.input, cmd = c.input.Update(msg)
 	cmds = append(cmds, cmd)
 
-	// Still pass non-key messages (like window resize) to viewport
-	if _, ok := msg.(tea.KeyPressMsg); !ok {
+	// Only pass resize to viewport — mouse events are handled above
+	if _, ok := msg.(tea.WindowSizeMsg); ok {
 		c.viewport, cmd = c.viewport.Update(msg)
 		cmds = append(cmds, cmd)
 	}
