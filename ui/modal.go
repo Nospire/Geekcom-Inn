@@ -55,8 +55,8 @@ func NewHelpModal() HelpModal {
 
 func (h HelpModal) View(width, height int) string {
 	// Header with ╱╱╱ fill
-	headerText := " Help "
-	fillLen := 40 - len(headerText)
+	headerText := strHelpTitle
+	fillLen := 40 - lipgloss.Width(headerText)
 	if fillLen < 4 {
 		fillLen = 4
 	}
@@ -77,61 +77,59 @@ func (h HelpModal) View(width, height int) string {
 	b.WriteString(header)
 	b.WriteString("\n\n")
 
-	b.WriteString(cat.Render("CHAT KEYS"))
+	b.WriteString(cat.Render(strHelpCatChat))
 	b.WriteString("\n")
 	keys := []struct{ k, d string }{
-		{"F1 or ?", "this help"},
-		{"F2", "change nickname"},
-		{"F3", "switch rooms"},
-		{"F4", "view mentions"},
-		{"F5", "post note"},
-		{"F6", "tankard clicker"},
-		{"F7", "leaderboard"},
-		{"TAB", "toggle DMs"},
-		{"ESC", "close modal / unfocus"},
-		{"SHIFT+arrows", "scroll chat"},
+		{"F1 or ?", strKeyHelpThis},
+		{"F2", strKeyChangeNick},
+		{"F3", strKeySwitchRooms},
+		{"F4", strKeyViewMentions},
+		{"F5", strKeyPostNote},
+		{"F6", strKeyTankard},
+		{"F7", strKeyLeaderboard},
+		{"TAB", strKeyToggleDMs},
+		{"ESC", strKeyCloseModal},
+		{"SHIFT+arrows", strKeyScrollChat},
 	}
 	for _, k := range keys {
 		fmt.Fprintf(&b, "  %s  %s\n", cmd.Width(18).Render(k.k), desc.Render(k.d))
 	}
 
 	b.WriteString("\n")
-	b.WriteString(cat.Render("COMMANDS"))
+	b.WriteString(cat.Render(strHelpCatCommands))
 	b.WriteString("\n")
 	cmds := []struct{ k, d string }{
-		{"/poll", "create a poll"},
-		{"/vote", "vote on active polls"},
-		{"/endpoll", "close your poll"},
-		{"/gif <search>", "search and send animated GIFs"},
-		{"/submit", "submit a wargame flag"},
-		{"/leaderboard", "view hacker rankings"},
-		{"/dm @name", "open private DM"},
-		{"/dm @name <msg>", "send a DM directly"},
+		{"/poll", strCmdPoll},
+		{"/vote", strCmdVote},
+		{"/endpoll", strCmdEndpoll},
+		{"/gif <search>", strCmdGif},
+		{"/submit", strCmdSubmit},
+		{"/leaderboard", strCmdLeaderboard},
+		{"/dm @name", strCmdDm},
+		{"/dm @name <msg>", strCmdDmMsg},
 	}
 	for _, c := range cmds {
 		fmt.Fprintf(&b, "  %s  %s\n", cmd.Width(18).Render(c.k), desc.Render(c.d))
 	}
 
 	b.WriteString("\n")
-	b.WriteString(cat.Render("GALLERY KEYS"))
+	b.WriteString(cat.Render(strHelpCatGallery))
 	b.WriteString("\n")
 	gkeys := []struct{ k, d string }{
-		{"P", "post note"},
-		{"D", "delete your note"},
-		{"TAB", "cycle selection"},
-		{"click + drag", "move your notes"},
+		{"P", strGalleryKeyPost},
+		{"D", strGalleryKeyDelete},
+		{"TAB", strGalleryKeyTab},
+		{"click + drag", strGalleryKeyDrag},
 	}
 	for _, k := range gkeys {
 		fmt.Fprintf(&b, "  %s  %s\n", cmd.Width(18).Render(k.k), desc.Render(k.d))
 	}
 
 	b.WriteString("\n")
-	b.WriteString(cat.Render("INFO"))
+	b.WriteString(cat.Render(strHelpCatInfo))
 	b.WriteString("\n")
-	b.WriteString(desc.Italic(true).Render(
-		"  All data purged every Sunday 23:59 UTC.\n"))
-	b.WriteString(desc.Italic(true).Render(
-		"  Nothing is permanent. Draw while you can."))
+	b.WriteString(desc.Italic(true).Render(strHelpInfoLine1 + "\n"))
+	b.WriteString(desc.Italic(true).Render(strHelpInfoLine2))
 
 	// Footer
 	b.WriteString("\n\n")
@@ -141,7 +139,7 @@ func (h HelpModal) View(width, height int) string {
 	b.WriteString("\n")
 	esc := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ESC")
 	b.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render(
-		fmt.Sprintf("  %s close", esc)))
+		fmt.Sprintf("  %s "+strClose, esc)))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -161,7 +159,7 @@ type NickModal struct {
 
 func NewNickModal(currentNick string) NickModal {
 	ti := textinput.New()
-	ti.Placeholder = "enter new nickname..."
+	ti.Placeholder = strNickPlaceholder
 	ti.Focus()
 	ti.CharLimit = 20
 	ti.Prompt = "> "
@@ -181,7 +179,7 @@ func (n NickModal) Update(msg tea.Msg) (NickModal, tea.Cmd) {
 			if len(val) >= 2 && len(val) <= 20 {
 				return n, func() tea.Msg { return NickChangeMsg{Nick: val} }
 			}
-			n.err = "nickname must be 2-20 characters"
+			n.err = strNickErrLen
 			return n, nil
 		}
 	}
@@ -194,8 +192,8 @@ func (n NickModal) Update(msg tea.Msg) (NickModal, tea.Cmd) {
 
 func (n NickModal) View(width, height int) string {
 	// Header
-	headerText := " Change Nickname "
-	fillLen := 36 - len(headerText)
+	headerText := strNickTitle
+	fillLen := 36 - lipgloss.Width(headerText)
 	if fillLen < 4 {
 		fillLen = 4
 	}
@@ -210,7 +208,7 @@ func (n NickModal) View(width, height int) string {
 	var b strings.Builder
 	b.WriteString(header)
 	b.WriteString("\n\n")
-	b.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render("  Enter a new nickname (2-20 chars)"))
+	b.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render(strNickHint))
 	b.WriteString("\n\n")
 	b.WriteString("  " + n.input.View())
 
@@ -228,7 +226,7 @@ func (n NickModal) View(width, height int) string {
 	enter := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ENTER")
 	esc := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ESC")
 	b.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render(
-		fmt.Sprintf("  %s confirm  ·  %s cancel", enter, esc)))
+		fmt.Sprintf("  %s "+strConfirm+"  ·  %s "+strCancel, enter, esc)))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -293,8 +291,8 @@ func (j JoinRoomModal) Update(msg tea.Msg) (JoinRoomModal, tea.Cmd) {
 }
 
 func (j JoinRoomModal) View(width, height int) string {
-	headerText := " Join Room "
-	fillLen := 36 - len(headerText)
+	headerText := strJoinRoomTitle
+	fillLen := 36 - lipgloss.Width(headerText)
 	if fillLen < 4 {
 		fillLen = 4
 	}
@@ -334,7 +332,7 @@ func (j JoinRoomModal) View(width, height int) string {
 		}
 
 		if isCurrent {
-			tag := lipgloss.NewStyle().Foreground(ColorDim).Render("  (here)")
+			tag := lipgloss.NewStyle().Foreground(ColorDim).Render("  " + strJoinRoomHere)
 			line += tag
 		}
 
@@ -346,7 +344,7 @@ func (j JoinRoomModal) View(width, height int) string {
 	b2.WriteString("\n\n")
 
 	// Regular rooms
-	b2.WriteString(sectionHeader.Render("  ROOMS"))
+	b2.WriteString(sectionHeader.Render(strLabelRooms))
 	b2.WriteString("\n")
 	b2.WriteString("  " + dimSep.Render(strings.Repeat("─", 32)))
 	b2.WriteString("\n")
@@ -367,7 +365,7 @@ func (j JoinRoomModal) View(width, height int) string {
 	}
 	if hasWargame {
 		b2.WriteString("\n")
-		b2.WriteString(greenHeader.Render("  WARGAMES"))
+		b2.WriteString(greenHeader.Render(strLabelWargames))
 		b2.WriteString("\n")
 		b2.WriteString("  " + dimSep.Render(strings.Repeat("─", 32)))
 		b2.WriteString("\n")
@@ -388,7 +386,7 @@ func (j JoinRoomModal) View(width, height int) string {
 	enterK := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ENTER")
 	escK := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ESC")
 	b2.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render(
-		fmt.Sprintf("  %s navigate  ·  %s join  ·  %s cancel", arrows, enterK, escK)))
+		fmt.Sprintf("  %s "+strNavigate+"  ·  %s "+strJoin+"  ·  %s "+strCancel, arrows, enterK, escK)))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -409,7 +407,7 @@ type PostModal struct {
 
 func NewPostModal() PostModal {
 	ta := textarea.New()
-	ta.Placeholder = "write something on the board..."
+	ta.Placeholder = strPostNotePlaceholder
 	ta.Focus()
 	ta.CharLimit = 280
 	ta.MaxWidth = 50
@@ -439,8 +437,8 @@ func (p PostModal) Update(msg tea.Msg) (PostModal, tea.Cmd) {
 
 func (p PostModal) View(width, height int) string {
 	modalW := 54
-	headerText := " Post a Note "
-	fillLen := modalW - len(headerText)
+	headerText := strPostNoteTitle
+	fillLen := modalW - lipgloss.Width(headerText)
 	if fillLen < 4 {
 		fillLen = 4
 	}
@@ -455,7 +453,7 @@ func (p PostModal) View(width, height int) string {
 	var b3 strings.Builder
 	b3.WriteString(header)
 	b3.WriteString("\n\n")
-	b3.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render("  280 chars max. text wraps automatically."))
+	b3.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render(strPostNoteHint))
 	b3.WriteString("\n\n")
 	b3.WriteString(p.input.View())
 
@@ -467,7 +465,7 @@ func (p PostModal) View(width, height int) string {
 	submit := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("CTRL+S")
 	esc := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ESC")
 	b3.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render(
-		fmt.Sprintf("  %s post  ·  %s cancel", submit, esc)))
+		fmt.Sprintf("  %s "+strPost+"  ·  %s "+strCancel, submit, esc)))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -501,8 +499,8 @@ func NewExpandNoteModal(text, nick string, colorIdx int, isOwn bool, noteID int)
 
 func (e ExpandNoteModal) View(width, height int) string {
 	modalW := 56
-	headerText := " Note "
-	fillLen := modalW - len(headerText)
+	headerText := strNoteTitle
+	fillLen := modalW - lipgloss.Width(headerText)
 	if fillLen < 4 {
 		fillLen = 4
 	}
@@ -543,12 +541,12 @@ func (e ExpandNoteModal) View(width, height int) string {
 
 	esc := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ESC")
 	footer := lipgloss.NewStyle().Foreground(ColorDim).Render(
-		fmt.Sprintf("  %s close", esc))
+		fmt.Sprintf("  %s "+strClose, esc))
 
 	if e.IsOwn {
 		del := lipgloss.NewStyle().Foreground(lipgloss.Color("131")).Bold(true).Render("D")
 		footer += lipgloss.NewStyle().Foreground(ColorDim).Render(
-			fmt.Sprintf("  ·  %s delete", del))
+			fmt.Sprintf("  ·  %s "+strDelete, del))
 	}
 	b4.WriteString(footer)
 
@@ -593,8 +591,8 @@ func (a AdminConfirmModal) View(width, height int) string {
 
 	var b5 strings.Builder
 
-	headerText := " ADMIN "
-	fillLen := 40 - len(headerText)
+	headerText := strAdminTitle
+	fillLen := 40 - lipgloss.Width(headerText)
 	leftFill := strings.Repeat("╱", fillLen/2)
 	rightFill := strings.Repeat("╱", fillLen-fillLen/2)
 	b5.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("131")).Render(leftFill))
@@ -604,7 +602,7 @@ func (a AdminConfirmModal) View(width, height int) string {
 
 	b5.WriteString("  " + warn.Render(a.Message))
 	b5.WriteString("\n\n")
-	b5.WriteString("  " + dim.Render("This action cannot be undone."))
+	b5.WriteString("  " + dim.Render(strAdminCannotUndo))
 
 	b5.WriteString("\n\n")
 	b5.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("131")).Render(
@@ -613,7 +611,7 @@ func (a AdminConfirmModal) View(width, height int) string {
 
 	y := lipgloss.NewStyle().Foreground(lipgloss.Color("108")).Bold(true).Render("Y")
 	n := lipgloss.NewStyle().Foreground(lipgloss.Color("131")).Bold(true).Render("N")
-	b5.WriteString(dim.Render(fmt.Sprintf("  %s confirm  ·  %s cancel", y, n)))
+	b5.WriteString(dim.Render(fmt.Sprintf("  %s "+strConfirm+"  ·  %s "+strCancel, y, n)))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -677,9 +675,9 @@ func (m MentionModal) View(width, height int) string {
 	cur := m.mentions[m.current]
 
 	// Header
-	headerText := fmt.Sprintf(" @mention from %s in #%s ", cur.Author, cur.Room)
+	headerText := fmt.Sprintf(strMentionHeaderFmt, cur.Author, cur.Room)
 	counter := fmt.Sprintf(" %d/%d ", m.current+1, len(m.mentions))
-	fillLen := modalW - len(headerText) - len(counter)
+	fillLen := modalW - lipgloss.Width(headerText) - lipgloss.Width(counter)
 	if fillLen < 2 {
 		fillLen = 2
 	}
@@ -736,7 +734,7 @@ func (m MentionModal) View(width, height int) string {
 	enter := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ENTER")
 	esc := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ESC")
 	b.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render(
-		fmt.Sprintf("  %s prev/next  ·  %s jump  ·  %s close", arrows, enter, esc)))
+		fmt.Sprintf("  %s "+strPrevNext+"  ·  %s "+strJump+"  ·  %s "+strClose, arrows, enter, esc)))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).

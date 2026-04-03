@@ -408,13 +408,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		if !ok {
-			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, "Wrong flag. Try again."))
+			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, strSysWrongFlag))
 			return a, nil
 		}
 		// Success — announce to the entire tavern
 		totalLevel := a.wargameStore.UserTotalLevel(a.session.Fingerprint)
 		totalPts := a.wargameStore.UserTotalPoints(a.session.Fingerprint)
-		announcement := fmt.Sprintf(">> %s hacked %s level %d  [Lv.%d | %d pts]",
+		announcement := fmt.Sprintf(strSysHackedFmt,
 			a.session.Nickname, strings.ToUpper(a.session.Room), newLevel, totalLevel, totalPts)
 		a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, announcement))
 		// Broadcast as banner so all rooms see it
@@ -428,11 +428,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.wargameStore != nil {
 			a.wargameStore.Signup(a.session.Fingerprint)
 			a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
-				fmt.Sprintf("%s joined the wargames", a.session.Nickname)))
+				fmt.Sprintf(strSysJoinWargamesFmt, a.session.Nickname)))
 			a.onSend(session.Msg{
 				Type: session.MsgSystem,
 				Room: a.session.Room,
-				Text: fmt.Sprintf("%s joined the wargames", a.session.Nickname),
+				Text: fmt.Sprintf(strSysJoinWargamesFmt, a.session.Nickname),
 			})
 		}
 		a.modal = ModalNone
@@ -490,8 +490,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.transVel = 0.0
 				a.doLayout()
 				a.refreshCaches()
-				a.chat.AddMessage(chat.NewSystemMessage(a.session.Room,
-					"Welcome to the tavern. Type /help for commands."))
+				a.chat.AddMessage(chat.NewSystemMessage(a.session.Room, strSysWelcome))
 				if banner := a.store.GetBanner(); banner != "" {
 					a.chat.AddMessage(chat.NewBannerMessage(a.session.Room, banner))
 				}
@@ -1522,7 +1521,7 @@ func (a *App) switchRoom(target string) {
 			a.chat.AddMessage(msg)
 		}
 		a.chat.AddMessage(chat.NewSystemMessage(target,
-			fmt.Sprintf("You joined #%s", target)))
+			fmt.Sprintf(strSysJoinedRoomFmt, target)))
 		// Restore active poll cards
 		for _, p := range a.pollStore.RoomPolls(target) {
 			p := p
@@ -1537,7 +1536,7 @@ func (a *App) switchRoom(target string) {
 	// Announce join in new room
 	a.onSend(session.Msg{
 		Type: session.MsgUserJoined,
-		Text: fmt.Sprintf("%s joined from #%s", a.session.Nickname, oldRoom),
+		Text: fmt.Sprintf(strSysJoinedFromFmt, a.session.Nickname, oldRoom),
 		Room: target,
 	})
 

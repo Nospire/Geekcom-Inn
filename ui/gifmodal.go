@@ -89,7 +89,7 @@ func (g GifModal) Update(msg tea.Msg) (GifModal, tea.Cmd) {
 		}
 		g.results = msg.Results
 		if len(g.results) == 0 {
-			g.err = "no results"
+			g.err = strGifNoResult
 			return g, nil
 		}
 		g.cursor = 0
@@ -219,12 +219,12 @@ func (g GifModal) View(width, height int) string {
 	var b strings.Builder
 
 	// Title
-	title := fmt.Sprintf(" Search KLIPY: %s ", g.query)
+	title := fmt.Sprintf(strGifTitleFmt, g.query)
 	b.WriteString(accent.Render(title))
 	b.WriteString("\n\n")
 
 	if g.loading && len(g.frames) == 0 {
-		b.WriteString(dim.Render("  loading..."))
+		b.WriteString(dim.Render(strGifLoading))
 		b.WriteString("\n")
 	} else if g.err != "" && len(g.frames) == 0 {
 		b.WriteString(dim.Render("  " + g.err))
@@ -256,9 +256,9 @@ func (g GifModal) View(width, height int) string {
 	}
 
 	// Controls
-	controls := border.Render("←→") + dim.Render(" browse  ") +
-		border.Render("ENTER") + dim.Render(" send  ") +
-		border.Render("ESC") + dim.Render(" close")
+	controls := border.Render("←→") + dim.Render(" "+strBrowse+"  ") +
+		border.Render("ENTER") + dim.Render(" "+strSend+"  ") +
+		border.Render("ESC") + dim.Render(" "+strClose)
 	b.WriteString("  " + controls)
 
 	content := b.String()

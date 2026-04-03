@@ -17,8 +17,8 @@ func NewChangelogModal() ChangelogModal {
 func (c ChangelogModal) View(width, height int) string {
 	modalW := 46
 
-	headerText := " Changelog "
-	fillLen := modalW - len(headerText)
+	headerText := strChangelogTitle
+	fillLen := modalW - lipgloss.Width(headerText)
 	if fillLen < 4 {
 		fillLen = 4
 	}
@@ -48,7 +48,7 @@ func (c ChangelogModal) View(width, height int) string {
 		b.WriteString("\n")
 		tag := "v" + entry.Version
 		if i == 0 {
-			tag += " (latest)"
+			tag += strLatest
 		}
 		b.WriteString("  " + verStyle.Render(tag))
 		b.WriteString("\n")
@@ -68,7 +68,7 @@ func (c ChangelogModal) View(width, height int) string {
 
 	esc := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ESC")
 	b.WriteString(lipgloss.NewStyle().Foreground(ColorDim).Render(
-		fmt.Sprintf("  %s close", esc)))
+		fmt.Sprintf("  %s "+strClose, esc)))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).

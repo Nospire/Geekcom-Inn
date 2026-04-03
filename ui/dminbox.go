@@ -81,16 +81,16 @@ func (d DMInbox) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString("  " + accent.Render("DIRECT MESSAGES"))
+	b.WriteString("  " + accent.Render(strDMTitle))
 	b.WriteString("\n")
 	b.WriteString("  " + dimmer.Render(strings.Repeat("─", contentW)))
 	b.WriteString("\n")
 
 	if len(d.conversations) == 0 {
 		b.WriteString("\n")
-		b.WriteString("  " + dim.Render("No conversations yet."))
+		b.WriteString("  " + dim.Render(strDMEmpty))
 		b.WriteString("\n\n")
-		b.WriteString("  " + dim.Render("Use ") + highlight.Render("/dm @name") + dim.Render(" in the tavern to start one."))
+		b.WriteString("  " + dim.Render(strDMEmptyHintPre) + highlight.Render("/dm @name") + dim.Render(strDMEmptyHintPos))
 		b.WriteString("\n")
 	}
 
@@ -135,7 +135,7 @@ func (d DMInbox) View() string {
 		// Unread badge + time on same line
 		suffix := "  " + timeRendered
 		if c.UnreadCount > 0 {
-			badge := amber.Render(fmt.Sprintf(" %d new", c.UnreadCount))
+			badge := amber.Render(fmt.Sprintf(strDMNewFmt, c.UnreadCount))
 			suffix = badge + suffix
 		}
 		b.WriteString(suffix)
@@ -144,7 +144,7 @@ func (d DMInbox) View() string {
 
 	// Footer
 	b.WriteString("\n")
-	b.WriteString("  " + dimmer.Render("↑↓ navigate · ENTER open · TAB back to tavern"))
+	b.WriteString(dimmer.Render(strDMFooter))
 
 	return b.String()
 }
@@ -156,11 +156,11 @@ func inboxRelativeTime(t time.Time, now time.Time) string {
 	diff := now.Sub(t)
 	switch {
 	case diff < time.Minute:
-		return "now"
+		return strDMNowFmt
 	case diff < time.Hour:
-		return fmt.Sprintf("%dm", int(diff.Minutes()))
+		return fmt.Sprintf("%dм", int(diff.Minutes()))
 	case diff < 24*time.Hour:
-		return fmt.Sprintf("%dh", int(diff.Hours()))
+		return fmt.Sprintf("%dч", int(diff.Hours()))
 	default:
 		return t.Format("Jan 2")
 	}

@@ -309,29 +309,29 @@ func (s Splash) renderCard() string {
 	if s.flair {
 		nick = "~" + nick
 	}
-	b.WriteString(SplashDescStyle.Render("you are ") + NickStyle(0).Render(nick))
+	b.WriteString(SplashDescStyle.Render(strSplashYouAre) + NickStyle(0).Render(nick))
 	b.WriteString("\n\n")
 
-	b.WriteString(SplashDescStyle.Render("a terminal tavern over SSH."))
+	b.WriteString(SplashDescStyle.Render(strSplashLine1))
 	b.WriteString("\n")
-	b.WriteString(SplashDescStyle.Render("chat, play games, hang out."))
+	b.WriteString(SplashDescStyle.Render(strSplashLine2))
 	b.WriteString("\n\n")
 
-	b.WriteString(SplashDescStyle.Italic(true).Render("no accounts. no logs. no rules."))
+	b.WriteString(SplashDescStyle.Italic(true).Render(strSplashLine3))
 	b.WriteString("\n")
-	b.WriteString(SplashDescStyle.Italic(true).Render("say what you mean."))
+	b.WriteString(SplashDescStyle.Italic(true).Render(strSplashLine4))
 	b.WriteString("\n\n")
 
-	b.WriteString(SplashDescStyle.Foreground(ColorDimmer).Render("everything resets every sunday."))
+	b.WriteString(SplashDescStyle.Foreground(ColorDimmer).Render(strSplashLine5))
 	b.WriteString("\n")
-	b.WriteString(SplashDescStyle.Foreground(ColorDimmer).Render("nothing is permanent."))
+	b.WriteString(SplashDescStyle.Foreground(ColorDimmer).Render(strSplashLine6))
 
 	b.WriteString("\n\n")
 	enterFrame := enterPulse[s.frame%len(enterPulse)]
 	enterKey := SplashKeyStyle.Render(enterFrame)
-	enterDesc := lipgloss.NewStyle().Foreground(ColorSand).Render(" enter the tavern")
+	enterDesc := lipgloss.NewStyle().Foreground(ColorSand).Render(strSplashEnterDesc)
 	quitKey := SplashKeyStyle.Render("[ Q ]")
-	quitDesc := lipgloss.NewStyle().Foreground(ColorDim).Render(" exit")
+	quitDesc := lipgloss.NewStyle().Foreground(ColorDim).Render(strSplashQuitDesc)
 	b.WriteString(enterKey + enterDesc + "    " + quitKey + quitDesc)
 
 	b.WriteString("\n\n")
@@ -342,7 +342,7 @@ func (s Splash) renderCard() string {
 	b.WriteString(centerText(SplashDescStyle.Render(verStr), len(verStr), 44))
 	b.WriteString("\n")
 	cKey := SplashKeyStyle.Render("[ C ]")
-	cDesc := lipgloss.NewStyle().Foreground(ColorDim).Render(" changelog")
+	cDesc := lipgloss.NewStyle().Foreground(ColorDim).Render(strSplashChangelog)
 	changeHint := cKey + cDesc
 	b.WriteString(centerText(changeHint, 15, 44))
 

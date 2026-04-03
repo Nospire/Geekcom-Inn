@@ -53,7 +53,7 @@ type ChatView struct {
 
 func NewChatView() ChatView {
 	ti := textinput.New()
-	ti.Placeholder = "Type your message..."
+	ti.Placeholder = strChatPlaceholder
 	ti.Focus()
 	ti.CharLimit = 500
 	ti.Prompt = "  → > "
@@ -292,15 +292,15 @@ func formatTimestamp(t time.Time, now time.Time) string {
 
 	switch {
 	case diff < 10*time.Second:
-		return "just now"
+		return strTsJustNow
 	case diff < time.Minute:
-		return fmt.Sprintf("%ds ago", int(diff.Seconds()))
+		return fmt.Sprintf(strTsSecsAgo, int(diff.Seconds()))
 	case diff < time.Hour:
 		mins := int(diff.Minutes())
 		if mins == 1 {
-			return "1 min ago"
+			return strTs1MinAgo
 		}
-		return fmt.Sprintf("%d mins ago", mins)
+		return fmt.Sprintf(strTsMinsAgo, mins)
 	case diff < 24*time.Hour:
 		return t.Format("15:04")
 	default:
@@ -598,11 +598,11 @@ func (c ChatView) renderTypingIndicator() string {
 	var text string
 	switch len(names) {
 	case 1:
-		text = fmt.Sprintf("%s is typing%s", names[0], dots)
+		text = fmt.Sprintf(strTypingOne, names[0], dots)
 	case 2:
-		text = fmt.Sprintf("%s and %s are typing%s", names[0], names[1], dots)
+		text = fmt.Sprintf(strTypingTwo, names[0], names[1], dots)
 	default:
-		text = fmt.Sprintf("%d people are typing%s", len(names), dots)
+		text = fmt.Sprintf(strTypingMany, len(names), dots)
 	}
 
 	return TypingStyle.Render("    " + text)

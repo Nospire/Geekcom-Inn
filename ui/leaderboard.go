@@ -66,14 +66,14 @@ func (l LeaderboardModal) View(width, height int) string {
 	var b strings.Builder
 
 	// Title
-	b.WriteString(highlight.Render("LEADERBOARD"))
+	b.WriteString(highlight.Render(strLeaderboardTitle))
 	b.WriteString("\n")
 	b.WriteString(dimmer.Render(strings.Repeat("─", 38)))
 	b.WriteString("\n\n")
 
 	// Rankings
 	if len(l.entries) == 0 {
-		b.WriteString(dim.Render("  No hackers on the board yet."))
+		b.WriteString(dim.Render(strLeaderboardEmpty))
 		b.WriteString("\n")
 	} else {
 		medals := []string{"*", ".", "."}
@@ -126,7 +126,7 @@ func (l LeaderboardModal) View(width, height int) string {
 		b.WriteString("\n")
 		b.WriteString(dimmer.Render(strings.Repeat("─", 38)))
 		b.WriteString("\n")
-		b.WriteString(accent.Render("YOUR PROGRESS"))
+		b.WriteString(accent.Render(strProgressTitle))
 		b.WriteString("\n\n")
 
 		for _, p := range l.progress {
@@ -140,7 +140,7 @@ func (l LeaderboardModal) View(width, height int) string {
 
 			if p.MaxLevel == 0 {
 				// No flags set yet — just show the name
-				b.WriteString("  " + dim.Render(padded) + " " + dimmer.Render("no flags yet"))
+				b.WriteString("  " + dim.Render(padded) + " " + dimmer.Render(strProgressNoFlags))
 			} else {
 				levelStr := fmt.Sprintf("%d/%d", p.Level, p.MaxLevel)
 				levelPad := fmt.Sprintf("%-6s", levelStr)
@@ -163,17 +163,17 @@ func (l LeaderboardModal) View(width, height int) string {
 		}
 
 		b.WriteString("\n")
-		rankStr := "unranked"
+		rankStr := strProgressUnranked
 		if l.myRank > 0 {
 			rankStr = fmt.Sprintf("#%d", l.myRank)
 		}
-		b.WriteString(dim.Render(fmt.Sprintf("  Total: Lv.%d  %d pts  Rank: %s",
+		b.WriteString(dim.Render(fmt.Sprintf(strProgressTotalFmt,
 			l.myLevel, l.myPoints, rankStr)))
 		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(dimmer.Render("ESC") + dim.Render(" close"))
+	b.WriteString(dimmer.Render("ESC") + dim.Render(" "+strClose))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).

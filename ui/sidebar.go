@@ -83,7 +83,7 @@ func (r RoomsPanel) View() string {
 	contentW := r.Width - 3
 
 	// Regular rooms
-	b.WriteString(header.Render("ROOMS"))
+	b.WriteString(header.Render(strSidebarRooms))
 	b.WriteString("\n")
 	b.WriteString(sep)
 	b.WriteString("\n")
@@ -107,7 +107,7 @@ func (r RoomsPanel) View() string {
 		b.WriteString("\n")
 		b.WriteString(sep)
 		b.WriteString("\n")
-		b.WriteString(green.Render("WARGAMES"))
+		b.WriteString(green.Render(strSidebarWargames))
 		b.WriteString("\n")
 
 		for _, rm := range r.Rooms {
@@ -122,7 +122,7 @@ func (r RoomsPanel) View() string {
 	b.WriteString("\n")
 	b.WriteString(sep)
 	b.WriteString("\n")
-	b.WriteString(header.Render("DMs"))
+	b.WriteString(header.Render(strSidebarDMs))
 	if r.DMUnread > 0 {
 		badge := lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).
 			Render(fmt.Sprintf(" %d", r.DMUnread))
@@ -130,7 +130,7 @@ func (r RoomsPanel) View() string {
 	}
 	b.WriteString("\n")
 	dmHint := lipgloss.NewStyle().Foreground(ColorDim)
-	b.WriteString(" " + dmHint.Render("TAB to open") + "\n")
+	b.WriteString(dmHint.Render(strSidebarDMHint) + "\n")
 
 	// Other SSH section
 	if len(r.SSHLinks) > 0 {
@@ -139,7 +139,7 @@ func (r RoomsPanel) View() string {
 		b.WriteString("\n")
 		b.WriteString(sep)
 		b.WriteString("\n")
-		b.WriteString(header.Render("OTHER SSH"))
+		b.WriteString(header.Render(strSidebarOtherSSH))
 		b.WriteString("\n")
 
 		maxW := r.Width - 4
@@ -194,14 +194,14 @@ func (o OnlinePanel) View() string {
 	var b strings.Builder
 
 	// ── Online section ──
-	b.WriteString(header.Render("ONLINE"))
+	b.WriteString(header.Render(strSidebarOnline))
 	b.WriteString("\n")
 	sep := dimmer.Render(strings.Repeat("─", o.Width-4))
 	b.WriteString(sep)
 	b.WriteString("\n")
 
 	if len(o.Users) == 0 {
-		b.WriteString(dim.Render("(empty)"))
+		b.WriteString(dim.Render(strSidebarEmpty))
 	} else {
 		dot := onlineDotFrames[o.Frame%len(onlineDotFrames)]
 		dotStyle := lipgloss.NewStyle().Foreground(ColorGreen).Render(dot)
@@ -238,7 +238,7 @@ func (o OnlinePanel) View() string {
 
 		b.WriteString(dimmer.Render(strings.Repeat("─", o.Width-4)))
 		b.WriteString("\n")
-		b.WriteString(accent.Render("HACKERS"))
+		b.WriteString(accent.Render(strSidebarHackers))
 		b.WriteString("\n")
 
 		medals := []string{"*", ".", "."}

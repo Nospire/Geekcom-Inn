@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,40 +11,42 @@ import (
 func TestFormatTimestamp_JustNow(t *testing.T) {
 	now := time.Now()
 	got := formatTimestamp(now, now)
-	if got != "just now" {
-		t.Errorf("got %q, want 'just now'", got)
+	if got != strTsJustNow {
+		t.Errorf("got %q, want %q", got, strTsJustNow)
 	}
 }
 
 func TestFormatTimestamp_FewSecondsAgo(t *testing.T) {
 	now := time.Now()
 	got := formatTimestamp(now.Add(-5*time.Second), now)
-	if got != "just now" {
-		t.Errorf("got %q, want 'just now' (under 10s)", got)
+	if got != strTsJustNow {
+		t.Errorf("got %q, want %q (under 10s)", got, strTsJustNow)
 	}
 }
 
 func TestFormatTimestamp_SecondsAgo(t *testing.T) {
 	now := time.Now()
 	got := formatTimestamp(now.Add(-30*time.Second), now)
-	if got != "30s ago" {
-		t.Errorf("got %q, want '30s ago'", got)
+	want := fmt.Sprintf(strTsSecsAgo, 30)
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
 func TestFormatTimestamp_OneMinAgo(t *testing.T) {
 	now := time.Now()
 	got := formatTimestamp(now.Add(-90*time.Second), now)
-	if got != "1 min ago" {
-		t.Errorf("got %q, want '1 min ago'", got)
+	if got != strTs1MinAgo {
+		t.Errorf("got %q, want %q", got, strTs1MinAgo)
 	}
 }
 
 func TestFormatTimestamp_MinutesAgo(t *testing.T) {
 	now := time.Now()
 	got := formatTimestamp(now.Add(-10*time.Minute), now)
-	if got != "10 mins ago" {
-		t.Errorf("got %q, want '10 mins ago'", got)
+	want := fmt.Sprintf(strTsMinsAgo, 10)
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
@@ -70,16 +73,17 @@ func TestFormatTimestamp_DaysAgo(t *testing.T) {
 func TestFormatTimestamp_ExactBoundary10s(t *testing.T) {
 	now := time.Now()
 	got := formatTimestamp(now.Add(-10*time.Second), now)
-	if got != "10s ago" {
-		t.Errorf("at exactly 10s boundary got %q, want '10s ago'", got)
+	want := fmt.Sprintf(strTsSecsAgo, 10)
+	if got != want {
+		t.Errorf("at exactly 10s boundary got %q, want %q", got, want)
 	}
 }
 
 func TestFormatTimestamp_ExactBoundary1Min(t *testing.T) {
 	now := time.Now()
 	got := formatTimestamp(now.Add(-60*time.Second), now)
-	if got != "1 min ago" {
-		t.Errorf("at exactly 60s boundary got %q, want '1 min ago'", got)
+	if got != strTs1MinAgo {
+		t.Errorf("at exactly 60s boundary got %q, want %q", got, strTs1MinAgo)
 	}
 }
 

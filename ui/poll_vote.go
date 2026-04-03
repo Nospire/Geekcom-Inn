@@ -99,11 +99,11 @@ func (v PollVoteOverlay) View(width, height int) string {
 	modalW := 42
 
 	// Header
-	headerText := fmt.Sprintf(" POLLS [%d/%d] ", v.current+1, len(v.polls))
+	headerText := fmt.Sprintf(strPollVoteHeaderFmt, v.current+1, len(v.polls))
 	if p.Closed {
-		headerText = fmt.Sprintf(" POLLS [%d/%d] (closed) ", v.current+1, len(v.polls))
+		headerText = fmt.Sprintf(strPollVoteHeaderClosedFmt, v.current+1, len(v.polls))
 	}
-	fillLen := modalW - len(headerText)
+	fillLen := modalW - lipgloss.Width(headerText)
 	if fillLen < 4 {
 		fillLen = 4
 	}
@@ -125,7 +125,7 @@ func (v PollVoteOverlay) View(width, height int) string {
 	// Title + author
 	b.WriteString("  " + accent.Render(p.Title))
 	b.WriteString("\n")
-	b.WriteString("  " + dim.Render(fmt.Sprintf("by %s · %d votes", p.CreatorNick, p.TotalVotes())))
+	b.WriteString("  " + dim.Render(fmt.Sprintf(strPollVoteByFmt, p.CreatorNick, p.TotalVotes())))
 	b.WriteString("\n\n")
 
 	// Options with bars
@@ -214,13 +214,13 @@ func (v PollVoteOverlay) View(width, height int) string {
 
 	var footerParts []string
 	if len(v.polls) > 1 {
-		footerParts = append(footerParts, fmt.Sprintf("%s next", tab))
+		footerParts = append(footerParts, fmt.Sprintf("%s "+strNext, tab))
 	}
-	footerParts = append(footerParts, fmt.Sprintf("%s select", arrows))
+	footerParts = append(footerParts, fmt.Sprintf("%s "+strSelect, arrows))
 	if !p.Closed {
-		footerParts = append(footerParts, fmt.Sprintf("%s vote", enter))
+		footerParts = append(footerParts, fmt.Sprintf("%s "+strVote, enter))
 	}
-	footerParts = append(footerParts, fmt.Sprintf("%s close", esc))
+	footerParts = append(footerParts, fmt.Sprintf("%s "+strClose, esc))
 
 	b.WriteString(dim.Render("  " + strings.Join(footerParts, "  ·  ")))
 
@@ -240,9 +240,9 @@ func RenderPollCard(p *poll.Poll) string {
 	var b strings.Builder
 
 	if p.Closed {
-		b.WriteString(dim.Render("POLL (closed)"))
+		b.WriteString(dim.Render(strPollCardClosed))
 	} else {
-		b.WriteString(highlight.Render("POLL"))
+		b.WriteString(highlight.Render(strPollCardOpen))
 	}
 	b.WriteString("\n")
 	b.WriteString(accent.Render(p.Title))
@@ -265,13 +265,13 @@ func RenderPollCard(p *poll.Poll) string {
 			b.WriteString(dim.Render(fmt.Sprintf("%s %s %d", opt, bar, counts[i])))
 			b.WriteString("\n")
 		}
-		b.WriteString(dim.Render(fmt.Sprintf("%d votes", p.TotalVotes())))
+		b.WriteString(dim.Render(fmt.Sprintf(strPollVotesFmt, p.TotalVotes())))
 	} else {
 		nums := []string{"❶", "❷", "❸", "❹"}
 		for i, opt := range p.Options {
 			b.WriteString(dim.Render(nums[i]+" "+opt) + "\n")
 		}
-		b.WriteString(dim.Render(fmt.Sprintf("/vote to cast · %d votes", p.TotalVotes())))
+		b.WriteString(dim.Render(fmt.Sprintf(strPollCastFmt, p.TotalVotes())))
 	}
 
 	return lipgloss.NewStyle().

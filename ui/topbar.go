@@ -44,11 +44,11 @@ func (t TopBar) View() string {
 
 	onlineDot := lipgloss.NewStyle().Foreground(ColorGreen).Render("●")
 	onlineNum := lipgloss.NewStyle().Foreground(ColorSand).Bold(true).Render(
-		fmt.Sprintf("%d online", t.OnlineCount))
+		fmt.Sprintf(strTopOnlineFmt, t.OnlineCount))
 	weekly := lipgloss.NewStyle().Foreground(ColorDim).Render(
-		fmt.Sprintf("%d this week", t.WeeklyCount))
+		fmt.Sprintf(strTopWeekFmt, t.WeeklyCount))
 	allTime := lipgloss.NewStyle().Foreground(ColorDimmer).Render(
-		fmt.Sprintf("%d all time", t.AllTimeCount))
+		fmt.Sprintf(strTopAllTimeFmt, t.AllTimeCount))
 	dot := lipgloss.NewStyle().Foreground(ColorDimmer).Render(" · ")
 
 	statsRight := fmt.Sprintf("%s %s%s%s%s%s  ", onlineDot, onlineNum, dot, weekly, dot, allTime)

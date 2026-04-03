@@ -29,7 +29,7 @@ type PollModal struct {
 
 func NewPollModal() PollModal {
 	ti := textinput.New()
-	ti.Placeholder = "poll question..."
+	ti.Placeholder = strPollQuestionPH
 	ti.Focus()
 	ti.CharLimit = 50
 	ti.Prompt = "> "
@@ -37,7 +37,7 @@ func NewPollModal() PollModal {
 	var opts [4]textinput.Model
 	for i := range opts {
 		o := textinput.New()
-		o.Placeholder = fmt.Sprintf("option %d...", i+1)
+		o.Placeholder = fmt.Sprintf(strPollOptionPHFmt, i+1)
 		o.CharLimit = 30
 		o.Prompt = "> "
 		opts[i] = o
@@ -81,7 +81,7 @@ func (p PollModal) Update(msg tea.Msg) (PollModal, tea.Cmd) {
 		case "enter":
 			title := strings.TrimSpace(p.title.Value())
 			if title == "" {
-				p.err = "title required"
+				p.err = strPollErrTitleRequired
 				return p, nil
 			}
 			var opts []string
@@ -92,7 +92,7 @@ func (p PollModal) Update(msg tea.Msg) (PollModal, tea.Cmd) {
 				}
 			}
 			if len(opts) < 2 {
-				p.err = "need at least 2 options"
+				p.err = strPollErrMinOptions
 				return p, nil
 			}
 			return p, func() tea.Msg {
@@ -130,8 +130,8 @@ func (p *PollModal) focusCurrent() {
 
 func (p PollModal) View(width, height int) string {
 	modalW := 44
-	headerText := " Create Poll "
-	fillLen := modalW - len(headerText)
+	headerText := strPollTitle
+	fillLen := modalW - lipgloss.Width(headerText)
 	if fillLen < 4 {
 		fillLen = 4
 	}
@@ -150,13 +150,13 @@ func (p PollModal) View(width, height int) string {
 	b.WriteString(header)
 	b.WriteString("\n\n")
 
-	b.WriteString("  " + label.Render("Title"))
+	b.WriteString("  " + label.Render(strPollLabelTitle))
 	b.WriteString("\n")
 	b.WriteString("  " + p.title.View())
 	b.WriteString("\n\n")
 
 	for i := 0; i < p.count; i++ {
-		b.WriteString("  " + label.Render(fmt.Sprintf("Option %d", i+1)))
+		b.WriteString("  " + label.Render(fmt.Sprintf(strPollOptionFmt, i+1)))
 		b.WriteString("\n")
 		b.WriteString("  " + p.options[i].View())
 		b.WriteString("\n")
@@ -167,7 +167,7 @@ func (p PollModal) View(width, height int) string {
 
 	if p.count < 4 {
 		b.WriteString("\n")
-		b.WriteString(dim.Render("  ctrl+n to add option"))
+		b.WriteString(dim.Render(strPollAddOptionHint))
 	}
 
 	if p.err != "" {
@@ -185,7 +185,7 @@ func (p PollModal) View(width, height int) string {
 	tab := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("TAB")
 	esc := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true).Render("ESC")
 	b.WriteString(dim.Render(
-		fmt.Sprintf("  %s submit  ·  %s next  ·  %s cancel", enter, tab, esc)))
+		fmt.Sprintf("  %s "+strSubmitBtn+"  ·  %s "+strNextBtn+"  ·  %s "+strCancel, enter, tab, esc)))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).

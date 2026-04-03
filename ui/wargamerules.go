@@ -48,37 +48,37 @@ func (w WargameRulesModal) View(width, height int) string {
 
 	var b strings.Builder
 
-	b.WriteString(highlight.Render("WARGAME: "+name) + "\n")
+	b.WriteString(highlight.Render("ВАРГЕЙМ: "+name) + "\n")
 	b.WriteString(dimmer.Render(strings.Repeat("─", 38)) + "\n\n")
 
-	b.WriteString(accent.Render("WHAT IS THIS") + "\n")
-	b.WriteString(dim.Render("  Practice hacking challenges from") + "\n")
-	b.WriteString(dim.Render("  OverTheWire and other wargames.") + "\n")
-	b.WriteString(dim.Render("  Solve levels, submit flags, earn") + "\n")
-	b.WriteString(dim.Render("  points and climb the leaderboard.") + "\n\n")
+	b.WriteString(accent.Render(strWargameCatWhat) + "\n")
+	b.WriteString(dim.Render(strWargameWhat1) + "\n")
+	b.WriteString(dim.Render(strWargameWhat2) + "\n")
+	b.WriteString(dim.Render(strWargameWhat3) + "\n")
+	b.WriteString(dim.Render(strWargameWhat4) + "\n\n")
 
-	b.WriteString(accent.Render("HOW TO PLAY") + "\n")
-	b.WriteString(dim.Render("  1. Sign up with ") + green.Render("Y") + dim.Render(" below") + "\n")
-	b.WriteString(dim.Render("  2. Go to ") + amber.Render("overthewire.org") + "\n")
-	b.WriteString(dim.Render("  3. Solve levels, find the flag") + "\n")
-	b.WriteString(dim.Render("  4. Type ") + green.Render("/submit") + dim.Render(" to enter it") + "\n")
-	b.WriteString(dim.Render("  5. Earn points and climb ranks") + "\n\n")
+	b.WriteString(accent.Render(strWargameCatHow) + "\n")
+	b.WriteString(dim.Render(strWargameHow1Pre) + green.Render("Y") + dim.Render(strWargameHow1Suf) + "\n")
+	b.WriteString(dim.Render(strWargameHow2Pre) + amber.Render("overthewire.org") + "\n")
+	b.WriteString(dim.Render(strWargameHow3) + "\n")
+	b.WriteString(dim.Render(strWargameHow4Pre) + green.Render("/submit") + dim.Render(strWargameHow4Suf) + "\n")
+	b.WriteString(dim.Render(strWargameHow5) + "\n\n")
 
-	b.WriteString(accent.Render("POINTS") + "\n")
-	b.WriteString(dim.Render("  Level N = N points") + "\n")
-	b.WriteString(dim.Render("  Lv.1=1  Lv.5=5  Lv.10=10") + "\n")
-	b.WriteString(dim.Render("  Points are permanent.") + "\n\n")
+	b.WriteString(accent.Render(strWargameCatPoints) + "\n")
+	b.WriteString(dim.Render(strWargamePoints1) + "\n")
+	b.WriteString(dim.Render(strWargamePoints2) + "\n")
+	b.WriteString(dim.Render(strWargamePoints3) + "\n\n")
 
 	// Status + controls
 	b.WriteString(dimmer.Render(strings.Repeat("─", 38)) + "\n")
 	if w.isParticipant {
-		b.WriteString(green.Render("  SIGNED UP") + dim.Render(" — you're on the board") + "\n\n")
-		b.WriteString(dimmer.Render("ENTER") + dim.Render(" continue  ") +
-			dimmer.Render("ESC") + dim.Render(" close"))
+		b.WriteString(green.Render(strWargameSignedUp) + dim.Render(strWargameSignedUpSuf) + "\n\n")
+		b.WriteString(dimmer.Render("ENTER") + dim.Render(" "+strContinue+"  ") +
+			dimmer.Render("ESC") + dim.Render(" "+strClose))
 	} else {
-		b.WriteString(amber.Render("  NOT SIGNED UP") + "\n\n")
-		b.WriteString(green.Bold(true).Render("Y") + dim.Render(" sign up  ") +
-			dimmer.Render("ESC") + dim.Render(" close"))
+		b.WriteString(amber.Render(strWargameNotSigned) + "\n\n")
+		b.WriteString(green.Bold(true).Render("Y") + dim.Render(" "+strSignUp+"  ") +
+			dimmer.Render("ESC") + dim.Render(" "+strClose))
 	}
 
 	return lipgloss.NewStyle().

@@ -129,14 +129,14 @@ func (s *Server) teaHandler(sshSess ssh.Session) (tea.Model, []tea.ProgramOption
 		s.cfg.Hub.Unregister(sess)
 		s.cfg.Hub.Broadcast(firstRoom, session.Msg{
 			Type: session.MsgUserLeft,
-			Text: fmt.Sprintf("%s left the tavern", sess.Nickname),
+			Text: fmt.Sprintf("%s покинул таверну", sess.Nickname),
 			Room: firstRoom,
 		})
 	}()
 
 	s.cfg.Hub.Broadcast(firstRoom, session.Msg{
 		Type: session.MsgUserJoined,
-		Text: fmt.Sprintf("%s joined the tavern", nickname),
+		Text: fmt.Sprintf("%s зашёл в таверну", nickname),
 		Room: firstRoom,
 	})
 

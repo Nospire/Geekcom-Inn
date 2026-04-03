@@ -33,35 +33,35 @@ func (b BottomBar) View() string {
 	var content string
 	if b.IsDMMode {
 		content = "  " +
-			k.Render("TAB") + " " + d.Render("tavern") + sep +
-			k.Render("ESC") + " " + d.Render("back") + sep +
-			k.Render("↑↓") + " " + d.Render("navigate") + sep +
-			k.Render("ENTER") + " " + d.Render("open")
+			k.Render("TAB") + " " + d.Render(strBBarTavern) + sep +
+			k.Render("ESC") + " " + d.Render(strBBarBack) + sep +
+			k.Render("↑↓") + " " + d.Render(strBBarNavigate) + sep +
+			k.Render("ENTER") + " " + d.Render(strBBarOpen)
 	} else if b.IsTankard {
 		content = "  " +
-			k.Render("SPACE") + " " + d.Render("drink") + sep +
-			k.Render("ESC") + " " + d.Render("back")
+			k.Render("SPACE") + " " + d.Render(strBBarDrink) + sep +
+			k.Render("ESC") + " " + d.Render(strBBarBack)
 	} else if b.IsGallery {
 		content = "  " +
-			k.Render("P") + " " + d.Render("post") + sep +
-			k.Render("E") + " " + d.Render("expand") + sep +
-			k.Render("D") + " " + d.Render("delete") + sep +
-			k.Render("TAB") + " " + d.Render("select")
+			k.Render("P") + " " + d.Render(strBBarPost) + sep +
+			k.Render("E") + " " + d.Render(strBBarExpand) + sep +
+			k.Render("D") + " " + d.Render(strBBarDelete) + sep +
+			k.Render("TAB") + " " + d.Render(strBBarSelect)
 	} else {
-		f4 := k.Render("F4") + " " + d.Render("mentions")
+		f4 := k.Render("F4") + " " + d.Render(strBBarMentions)
 		if b.MentionCount > 0 {
-			f4 = k.Render("F4") + " " + d.Render(fmt.Sprintf("mentions(%d)", b.MentionCount))
+			f4 = k.Render("F4") + " " + d.Render(fmt.Sprintf(strBBarMentionsFmt, b.MentionCount))
 		}
-		tabDM := k.Render("TAB") + " " + d.Render("DMs"+dmBadge)
+		tabDM := k.Render("TAB") + " " + d.Render(strBBarDMs+dmBadge)
 		content = "  " +
-			k.Render("F1") + " " + d.Render("help") + sep +
-			k.Render("F2") + " " + d.Render("nick") + sep +
-			k.Render("F3") + " " + d.Render("rooms") + sep +
+			k.Render("F1") + " " + d.Render(strBBarHelp) + sep +
+			k.Render("F2") + " " + d.Render(strBBarNick) + sep +
+			k.Render("F3") + " " + d.Render(strBBarRooms) + sep +
 			f4 + sep +
 			tabDM + sep +
-			k.Render("F6") + " " + d.Render("tankard") + sep +
-			k.Render("F7") + " " + d.Render("leaderboard") + sep +
-			k.Render("SHIFT+↑↓") + " " + d.Render("scroll")
+			k.Render("F6") + " " + d.Render(strBBarTankard) + sep +
+			k.Render("F7") + " " + d.Render(strBBarLeaderboard) + sep +
+			k.Render("SHIFT+↑↓") + " " + d.Render(strBBarScroll)
 	}
 
 	return BottomBarStyle.Width(b.Width).MaxWidth(b.Width).Render(content)

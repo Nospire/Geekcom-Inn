@@ -24,7 +24,7 @@ type SubmitModal struct {
 
 func NewSubmitModal(wargame string, currentLevel, maxLevel int) SubmitModal {
 	ti := textinput.New()
-	ti.Placeholder = "paste the flag..."
+	ti.Placeholder = strSubmitPlaceholder
 	ti.Focus()
 	ti.CharLimit = 200
 	ti.Prompt = "> "
@@ -47,7 +47,7 @@ func (s SubmitModal) Update(msg tea.Msg) (SubmitModal, tea.Cmd) {
 		case "enter":
 			flag := strings.TrimSpace(s.input.Value())
 			if flag == "" {
-				s.err = "flag cannot be empty"
+				s.err = strSubmitFlagEmpty
 				return s, nil
 			}
 			return s, func() tea.Msg { return SubmitFlagMsg{Flag: flag} }
@@ -68,12 +68,12 @@ func (s SubmitModal) View(width, height int) string {
 	var b strings.Builder
 
 	// Header
-	b.WriteString(highlight.Render("SUBMIT FLAG"))
+	b.WriteString(highlight.Render(strSubmitTitle))
 	b.WriteString("\n\n")
 
 	// Wargame + level info
 	b.WriteString(accent.Render(strings.ToUpper(s.wargame)))
-	b.WriteString(dim.Render(fmt.Sprintf("  Level %d", s.level)))
+	b.WriteString(dim.Render(fmt.Sprintf(strSubmitLevelFmt, s.level)))
 	if s.maxLevel > 0 {
 		b.WriteString(dimmer.Render(fmt.Sprintf("/%d", s.maxLevel)))
 	}
@@ -82,7 +82,7 @@ func (s SubmitModal) View(width, height int) string {
 	b.WriteString("\n\n")
 
 	// Input
-	b.WriteString(dim.Render("Flag:"))
+	b.WriteString(dim.Render(strSubmitFlagLabel))
 	b.WriteString("\n")
 	b.WriteString(s.input.View())
 	b.WriteString("\n\n")
@@ -93,8 +93,8 @@ func (s SubmitModal) View(width, height int) string {
 	}
 
 	// Controls
-	b.WriteString(dimmer.Render("ENTER") + dim.Render(" submit  ") +
-		dimmer.Render("ESC") + dim.Render(" close"))
+	b.WriteString(dimmer.Render("ENTER") + dim.Render(" "+strSubmitBtn+"  ") +
+		dimmer.Render("ESC") + dim.Render(" "+strClose))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
